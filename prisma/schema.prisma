@@ -1,0 +1,230 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  passwordHash String
+  name         String?
+  role         String        @default("USER") // ADMIN, USER
+  avatarUrl    String?
+  bio          String?
+  storageLimit Float         @default(5368709120) // Default: 5GB in bytes
+  storageUsed  Float         @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  
+  media        Media[]
+  albums       Album[]
+  playlists    Playlist[]
+  comments     Comment[]
+  likes        Like[]
+  shares       Share[]
+  permissions  Permission[]
+  activityLogs ActivityLog[]
+}
+
+model Media {
+  id           String        @id @default(uuid())
+  filename     String
+  type         String        // IMAGE, VIDEO
+  url          String
+  thumbnailUrl String?
+  size         Int
+  mimeType     String
+  width        Int?
+  height       Int?
+  duration     Float?        // In seconds, for videos
+  resolution   String?       // E.g., "1080p", "4K", for videos
+  isFavorite   Boolean       @default(false)
+  isArchived   Boolean       @default(false)
+  inTrash      Boolean       @default(false)
+  
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  albums       MediaAlbum[]
+  playlistItems PlaylistItem[]
+  tags         MediaTag[]
+  comments     Comment[]
+  likes        Like[]
+  shares       Share[]
+  coverForAlbums Album[]     @relation("AlbumCover")
+  
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Album {
+  id           String        @id @default(uuid())
+  name         String
+  description  String?
+  visibility   String        @default("PRIVATE") // PUBLIC, PRIVATE, PASSWORD_PROTECTED, INVITE_ONLY
+  passwordHash String?
+  
+  coverMediaId String?
+  coverMedia   Media?        @relation("AlbumCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
+  
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  parentId     String?
+  parent       Album?        @relation("NestedAlbums", fields: [parentId], references: [id], onDelete: Cascade)
+  children     Album[]       @relation("NestedAlbums")
+  
+  media        MediaAlbum[]
+  permissions  Permission[]
+  shares       Share[]
+  tags         AlbumTag[]
+  
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model MediaAlbum {
+  mediaId      String
+  albumId      String
+  addedAt      DateTime      @default(now())
+  
+  media        Media         @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  album        Album         @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  
+  @@id([mediaId, albumId])
+}
+
+model Playlist {
+  id          String         @id @default(uuid())
+  name        String
+  description String?
+  category    String?
+  autoPlay    Boolean        @default(true)
+  speed       Int            @default(3) // Delay in seconds
+  
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  items       PlaylistItem[]
+  shares      Share[]
+  
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model PlaylistItem {
+  id          String         @id @default(uuid())
+  playlistId  String
+  mediaId     String
+  order       Int
+  
+  playlist    Playlist       @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  media       Media          @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  
+  @@unique([playlistId, mediaId])
+}
+
+model Tag {
+  id      String      @id @default(uuid())
+  name    String      @unique
+  media   MediaTag[]
+  albums  AlbumTag[]
+}
+
+model MediaTag {
+  mediaId String
+  tagId   String
+  
+  media   Media       @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  tag     Tag         @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
+  @@id([mediaId, tagId])
+}
+
+model AlbumTag {
+  albumId String
+  tagId   String
+  
+  album   Album       @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  tag     Tag         @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
+  @@id([albumId, tagId])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  createdAt DateTime @default(now())
+  
+  mediaId   String
+  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  
+  mediaId   String
+  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([mediaId, userId])
+}
+
+model Share {
+  id                 String    @id @default(uuid())
+  token              String    @unique
+  type               String    // MEDIA, ALBUM, PLAYLIST
+  passwordHash       String?
+  expiresAt          DateTime?
+  downloadPermission Boolean   @default(true)
+  viewOnly           Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  
+  mediaId            String?
+  media              Media?    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  
+  albumId            String?
+  album              Album?    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  
+  playlistId         String?
+  playlist           Playlist? @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  
+  userId             String?
+  user               User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Permission {
+  id        String   @id @default(uuid())
+  role      String   // VIEWER, CONTRIBUTOR, EDITOR
+  createdAt DateTime @default(now())
+  
+  albumId   String
+  album     Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([albumId, userId])
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  action    String   // E.g., "UPLOAD_MEDIA", "CREATE_ALBUM", "SHARE_ALBUM"
+  details   String?  // JSON string or summary
+  createdAt DateTime @default(now())
+  
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
