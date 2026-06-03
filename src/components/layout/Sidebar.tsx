@@ -18,10 +18,16 @@ import {
   LayoutDashboard,
   Compass,
   UserCheck,
-  Settings
+  Settings,
+  X
 } from "lucide-react";
 
-export default function Sidebar() {
+interface SidebarProps {
+  mobileOpen: boolean;
+  setMobileOpen: (open: boolean) => void;
+}
+
+export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
   const { user, theme, toggleTheme, logout } = useApp();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
@@ -48,34 +54,47 @@ export default function Sidebar() {
   const storageLimitGB = (user.storageLimit / 1024 / 1024 / 1024).toFixed(1);
   const storageUsedGB = (user.storageUsed / 1024 / 1024 / 1024).toFixed(2);
 
+  const isCollapsedVisual = collapsed && !mobileOpen;
+
   return (
     <aside
-      className={`glass border-r border-border h-screen flex flex-col justify-between transition-all duration-300 relative z-20 ${
-        collapsed ? "w-20" : "w-64"
+      className={`glass border-r border-border h-screen flex flex-col justify-between transition-all duration-300 fixed md:relative z-40 md:z-20 ${
+        isCollapsedVisual ? "w-20" : "w-64"
+      } ${
+        mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       }`}
     >
       {/* Collapse Toggle Trigger */}
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-6 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center cursor-pointer shadow-md hover:scale-105 active:scale-95 transition-transform"
+        className="absolute -right-3 top-6 w-6 h-6 bg-primary text-primary-foreground rounded-full hidden md:flex items-center justify-center cursor-pointer shadow-md hover:scale-105 active:scale-95 transition-transform z-50"
       >
         {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
       </button>
 
       {/* Top Header Logo */}
-      <div className="p-6 flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white font-bold text-lg shadow-lg">
-          V
+      <div className="p-6 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white font-bold text-lg shadow-lg shrink-0">
+            V
+          </div>
+          {!isCollapsedVisual && (
+            <span className="font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent text-lg tracking-wide">
+              VividGallery
+            </span>
+          )}
         </div>
-        {!collapsed && (
-          <span className="font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent text-lg tracking-wide">
-            VividGallery
-          </span>
-        )}
+        {/* Close Button on mobile */}
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="md:hidden p-1 rounded-xl hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+        >
+          <X size={18} />
+        </button>
       </div>
 
       {/* Navigation Menu */}
-      <nav className="flex-1 px-4 py-2 space-y-1">
+      <nav className="flex-1 px-4 py-2 space-y-1 overflow-y-auto">
         {menuItems.map((item) => {
           const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
           const Icon = item.icon;
@@ -84,6 +103,7 @@ export default function Sidebar() {
             <Link
               key={item.name}
               href={item.href}
+              onClick={() => setMobileOpen(false)}
               className={`flex items-center gap-4 px-3 py-3 rounded-xl transition-all duration-200 group relative ${
                 isActive
                   ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]"
@@ -91,8 +111,8 @@ export default function Sidebar() {
               }`}
             >
               <Icon size={20} className={isActive ? "" : "group-hover:text-primary transition-colors"} />
-              {!collapsed && <span className="font-medium text-sm">{item.name}</span>}
-              {collapsed && (
+              {!isCollapsedVisual && <span className="font-medium text-sm">{item.name}</span>}
+              {isCollapsedVisual && (
                 <div className="absolute left-16 bg-card border border-border text-foreground text-xs py-1.5 px-3 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 shadow-xl whitespace-nowrap z-50">
                   {item.name}
                 </div>
@@ -105,8 +125,8 @@ export default function Sidebar() {
       {/* Bottom Profile, Storage & Theme controls */}
       <div className="p-4 border-t border-border space-y-4">
         {/* Storage usage details */}
-        <div className={`rounded-xl p-3 bg-muted/40 border border-border/40 ${collapsed ? "flex justify-center" : ""}`}>
-          {collapsed ? (
+        <div className={`rounded-xl p-3 bg-muted/40 border border-border/40 ${isCollapsedVisual ? "flex justify-center" : ""}`}>
+          {isCollapsedVisual ? (
             <div className="group relative cursor-pointer">
               <HardDrive size={20} className={storagePercent > 90 ? "text-destructive" : "text-primary"} />
               <div className="absolute left-12 bottom-0 bg-card border border-border text-foreground text-xs p-3 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 shadow-xl whitespace-nowrap z-50">
@@ -148,7 +168,7 @@ export default function Sidebar() {
             className="flex items-center gap-4 px-3 py-2.5 rounded-xl hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors cursor-pointer w-full text-left"
           >
             {theme === "dark" ? <Sun size={20} className="text-amber-400" /> : <Moon size={20} className="text-indigo-600" />}
-            {!collapsed && <span className="text-sm font-medium">Theme Mode</span>}
+            {!isCollapsedVisual && <span className="text-sm font-medium">Theme Mode</span>}
           </button>
 
           <button
@@ -156,7 +176,7 @@ export default function Sidebar() {
             className="flex items-center gap-4 px-3 py-2.5 rounded-xl hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors cursor-pointer w-full text-left"
           >
             <LogOut size={20} className="text-destructive/80" />
-            {!collapsed && <span className="text-sm font-medium">Logout</span>}
+            {!isCollapsedVisual && <span className="text-sm font-medium">Logout</span>}
           </button>
         </div>
       </div>

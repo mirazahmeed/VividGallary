@@ -569,7 +569,7 @@ export default function AlbumDetailPage() {
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           {isOwner && (
             <button
               onClick={handleDeleteAlbum}
@@ -590,36 +590,52 @@ export default function AlbumDetailPage() {
                 setManageTab("general");
                 setShowManageModal(true);
               }}
-              className="flex items-center gap-1.5 border border-border/80 hover:border-primary/45 bg-secondary/60 hover:bg-secondary text-foreground text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer hover:shadow transition-all"
+              className="flex items-center gap-1.5 border border-border/80 hover:border-primary/45 bg-secondary/60 hover:bg-secondary text-foreground text-xs font-bold px-3 py-2.5 sm:px-4 sm:py-2.5 rounded-xl cursor-pointer hover:shadow transition-all"
               title="Manage settings and collaboration"
             >
-              <Settings size={14} /> Manage Album
+              <Settings size={14} />
+              <span className="hidden md:inline">Manage Album</span>
             </button>
           )}
 
           <button
             onClick={() => setIsSelectMode(!isSelectMode)}
-            className={`text-xs font-bold px-4 py-2.5 rounded-xl border transition-all cursor-pointer shadow-sm ${
+            className={`text-xs font-bold px-3 py-2.5 sm:px-4 sm:py-2.5 rounded-xl border transition-all cursor-pointer shadow-sm ${
               isSelectMode
                 ? "bg-primary/10 border-primary/40 text-primary animate-pulse"
                 : "border-border/60 text-muted-foreground hover:text-foreground"
             }`}
+            title="Selection Mode"
           >
-            {isSelectMode ? "Selection Mode" : "Select Items"}
+            {isSelectMode ? (
+              <>
+                <span className="md:hidden">Selected</span>
+                <span className="hidden md:inline">Selection Mode</span>
+              </>
+            ) : (
+              <>
+                <span className="md:hidden">Select</span>
+                <span className="hidden md:inline">Select Items</span>
+              </>
+            )}
           </button>
 
           <button
             onClick={() => setShowCreateSubfolderModal(true)}
-            className="flex items-center gap-1.5 border border-border/80 hover:border-primary/45 bg-secondary/60 hover:bg-secondary text-foreground text-xs font-bold px-4.5 py-2.5 rounded-xl cursor-pointer hover:shadow transition-all"
+            className="flex items-center gap-1.5 border border-border/80 hover:border-primary/45 bg-secondary/60 hover:bg-secondary text-foreground text-xs font-bold px-3 py-2.5 sm:px-4.5 sm:py-2.5 rounded-xl cursor-pointer hover:shadow transition-all"
+            title="Create Subfolder"
           >
-            <Plus size={14} /> Subfolder
+            <Plus size={14} />
+            <span className="hidden md:inline">Subfolder</span>
           </button>
 
           <button
             onClick={handleOpenAddMedia}
-            className="flex items-center gap-1.5 bg-gradient-to-r from-primary to-accent hover:from-primary/95 hover:to-accent/95 text-white text-xs font-bold px-4.5 py-2.5 rounded-xl cursor-pointer shadow-md hover:shadow-lg transition-all active:scale-98"
+            className="flex items-center gap-1.5 bg-gradient-to-r from-primary to-accent hover:from-primary/95 hover:to-accent/95 text-white text-xs font-bold px-3 py-2.5 sm:px-4.5 sm:py-2.5 rounded-xl cursor-pointer shadow-md hover:shadow-lg transition-all active:scale-98"
+            title="Add Photos"
           >
-            <Plus size={14} /> Add Photos
+            <Plus size={14} />
+            <span className="hidden md:inline">Add Photos</span>
           </button>
         </div>
       </div>
@@ -792,16 +808,16 @@ export default function AlbumDetailPage() {
 
       {/* 5. Selection Mode Floating Action Drawer (Remove from Album) */}
       {isSelectMode && selectedMediaIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 glass border border-border/80 rounded-2xl shadow-2xl px-6 py-4 flex items-center gap-6 z-40 animate-in slide-in-from-bottom-5 duration-300 max-w-[90vw] sm:max-w-md">
-          <div className="text-xs font-bold text-foreground border-r border-border pr-5 shrink-0">
+        <div className="fixed bottom-4 sm:bottom-6 left-4 right-4 sm:left-1/2 sm:-translate-x-1/2 glass border border-border/80 rounded-2xl shadow-2xl px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-between sm:justify-start gap-4 sm:gap-6 z-40 animate-in slide-in-from-bottom-5 duration-300 max-w-[90vw] sm:max-w-md">
+          <div className="text-xs font-bold text-foreground sm:border-r sm:border-border sm:pr-5 shrink-0 whitespace-nowrap">
             Selected: <span className="text-primary">{selectedMediaIds.length}</span>
           </div>
 
           <button
             onClick={handleRemoveMedia}
-            className="flex items-center gap-1.5 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/25 text-xs font-bold text-rose-500 px-5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm active:scale-98 w-full justify-center"
+            className="flex items-center gap-1.5 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/25 text-xs font-bold text-rose-500 px-4 py-2.5 sm:px-5 sm:py-2.5 rounded-xl transition-all cursor-pointer shadow-sm active:scale-98 justify-center shrink-0"
           >
-            <Trash2 size={14} /> Remove from Album
+            <Trash2 size={14} /> <span className="hidden sm:inline">Remove from Album</span><span className="sm:hidden">Remove</span>
           </button>
         </div>
       )}

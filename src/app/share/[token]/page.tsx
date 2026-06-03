@@ -85,84 +85,17 @@ export default function ShareDetailPage() {
   const [slideshowPaused, setSlideshowPaused] = useState(false);
   const slideTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Root references for secure Blob URL loading
+  // Root references
   const media = asset?.media;
   const activeSlide = asset?.playlist?.items[currentSlideIndex]?.media;
 
-  // Blob URL states for image security
-  const [sharedMediaBlobUrl, setSharedMediaBlobUrl] = useState<string>("");
-  const [sharedMediaBlobLoading, setSharedMediaBlobLoading] = useState(false);
 
-  const [activeSlideBlobUrl, setActiveSlideBlobUrl] = useState<string>("");
-  const [activeSlideBlobLoading, setActiveSlideBlobLoading] = useState(false);
-
-  useEffect(() => {
-    setSharedMediaBlobUrl("");
-    if (media && media.type === "IMAGE") {
-      setSharedMediaBlobLoading(true);
-      const controller = new AbortController();
-      const fetchImage = async () => {
-        try {
-          const response = await fetch(media.url, { signal: controller.signal });
-          if (!response.ok) throw new Error("Fetch failed");
-          const blob = await response.blob();
-          const localUrl = URL.createObjectURL(blob);
-          setSharedMediaBlobUrl(localUrl);
-        } catch (err: any) {
-          if (err.name !== "AbortError") {
-            console.error("Failed to load shared image blob", err);
-            setSharedMediaBlobUrl(media.url);
-          }
-        } finally {
-          setSharedMediaBlobLoading(false);
-        }
-      };
-      fetchImage();
-      return () => {
-        controller.abort();
-        if (sharedMediaBlobUrl && sharedMediaBlobUrl.startsWith("blob:")) {
-          URL.revokeObjectURL(sharedMediaBlobUrl);
-        }
-      };
-    }
-  }, [media]);
-
-  useEffect(() => {
-    setActiveSlideBlobUrl("");
-    if (activeSlide && activeSlide.type === "IMAGE") {
-      setActiveSlideBlobLoading(true);
-      const controller = new AbortController();
-      const fetchImage = async () => {
-        try {
-          const response = await fetch(activeSlide.url, { signal: controller.signal });
-          if (!response.ok) throw new Error("Fetch failed");
-          const blob = await response.blob();
-          const localUrl = URL.createObjectURL(blob);
-          setActiveSlideBlobUrl(localUrl);
-        } catch (err: any) {
-          if (err.name !== "AbortError") {
-            console.error("Failed to load slide image blob", err);
-            setActiveSlideBlobUrl(activeSlide.url);
-          }
-        } finally {
-          setActiveSlideBlobLoading(false);
-        }
-      };
-      fetchImage();
-      return () => {
-        controller.abort();
-        if (activeSlideBlobUrl && activeSlideBlobUrl.startsWith("blob:")) {
-          URL.revokeObjectURL(activeSlideBlobUrl);
-        }
-      };
-    }
-  }, [activeSlide]);
 
   const handleDownloadMedia = (e: React.MouseEvent) => {
     e.preventDefault();
     if (!media) return;
     const link = document.createElement("a");
-    link.href = sharedMediaBlobUrl || media.url;
+    link.href = media.url;
     link.download = media.filename;
     document.body.appendChild(link);
     link.click();
@@ -352,14 +285,7 @@ export default function ShareDetailPage() {
         {/* Media Frame */}
         <div className="flex-1 flex items-center justify-center p-4">
           {media.type === "IMAGE" ? (
-            <div className="relative">
-              {sharedMediaBlobLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-10 rounded-lg">
-                  <Loader2 className="animate-spin text-primary" size={32} />
-                </div>
-              )}
-              <img src={sharedMediaBlobUrl || undefined} alt={media.filename} className="max-w-[85vw] max-h-[75vh] object-contain rounded-lg shadow-2xl" />
-            </div>
+            <img src={media.url} alt={media.filename} className="max-w-[85vw] max-h-[75vh] object-contain rounded-lg shadow-2xl" />
           ) : (
             <CustomVideoPlayer
               src={media.url}
@@ -506,14 +432,7 @@ export default function ShareDetailPage() {
         {/* Slide frame */}
         <div className="flex-grow flex items-center justify-center p-8 relative">
           {activeSlide.type === "IMAGE" ? (
-            <div className="relative">
-              {activeSlideBlobLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-10 rounded-lg">
-                  <Loader2 className="animate-spin text-primary" size={32} />
-                </div>
-              )}
-              <img src={activeSlideBlobUrl || undefined} alt={activeSlide.filename} className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl" />
-            </div>
+            <img src={activeSlide.url} alt={activeSlide.filename} className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl" />
           ) : (
             <CustomVideoPlayer
               src={activeSlide.url}

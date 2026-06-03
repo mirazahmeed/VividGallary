@@ -156,11 +156,11 @@ export default function GalleryPage() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300 relative min-h-[80vh]">
+    <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-300 relative min-h-[80vh]">
       {/* 1. Filter and Navigation Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/60 pb-5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 border-b border-border/60 pb-4 sm:pb-5">
         {/* Navigation Categories */}
-        <div className="flex flex-wrap gap-1 bg-secondary/40 p-1 border border-border/40 rounded-2xl">
+        <div className="flex overflow-x-auto scrollbar-none whitespace-nowrap gap-1 bg-secondary/40 p-1 border border-border/40 rounded-2xl max-w-full">
           {[
             { label: "Gallery", state: "GALLERY" },
             { label: "Favorites", state: "FAVORITE" },
@@ -186,9 +186,9 @@ export default function GalleryPage() {
         </div>
 
         {/* Media type selectors & select mode trigger */}
-        <div className="flex items-center gap-3.5">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3.5">
           {/* Mimetype category filters */}
-          <div className="flex border border-border/60 bg-muted/20 p-1 rounded-xl">
+          <div className="flex border border-border/60 bg-muted/20 p-1 rounded-xl shrink-0">
             {[
               { label: "All", type: "ALL" },
               { label: "Photos", type: "IMAGE" },
@@ -217,7 +217,7 @@ export default function GalleryPage() {
               setIsSelectMode(!isSelectMode);
               setSelectedIds([]);
             }}
-            className={`flex items-center gap-2 border text-xs font-bold px-4.5 py-2.5 rounded-xl transition-all cursor-pointer ${
+            className={`flex items-center gap-2 border text-xs font-bold px-3.5 py-2.5 sm:px-4.5 sm:py-2.5 rounded-xl transition-all cursor-pointer ${
               isSelectMode
                 ? "bg-primary/10 border-primary/40 text-primary"
                 : "border-border/60 text-muted-foreground hover:text-foreground"
@@ -337,12 +337,12 @@ export default function GalleryPage() {
 
       {/* 3. Floating Batch Action Drawer (Visible only in selection mode) */}
       {isSelectMode && selectedIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 glass border border-border/80 rounded-2xl shadow-2xl px-6 py-4 flex items-center gap-6 z-40 animate-in slide-in-from-bottom-5 duration-300 max-w-[90vw] sm:max-w-2xl">
-          <div className="text-xs font-bold text-foreground border-r border-border pr-5 shrink-0">
+        <div className="fixed bottom-4 sm:bottom-6 left-4 right-4 sm:left-1/2 sm:-translate-x-1/2 glass border border-border/80 rounded-2xl shadow-2xl px-4 py-3 sm:px-6 sm:py-4 flex flex-col sm:flex-row items-center gap-3 sm:gap-6 z-40 animate-in slide-in-from-bottom-5 duration-300 max-w-[90vw] sm:max-w-2xl">
+          <div className="text-xs font-bold text-foreground sm:border-r sm:border-border sm:pr-5 shrink-0">
             Selected: <span className="text-primary">{selectedIds.length}</span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
             {/* Batch Favorite */}
             {viewState !== "TRASH" && (
               <button

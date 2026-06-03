@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useApp } from "@/context/AppContext";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
@@ -8,6 +8,7 @@ import { Loader2, CloudUpload, CheckCircle2, AlertCircle, X } from "lucide-react
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const { user, loading, uploadQueue, clearUploadQueue } = useApp();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Visual Page Loader for initial session check
   if (loading) {
@@ -29,22 +30,32 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background">
+      {/* Backdrop for mobile drawer */}
+      {user && mobileSidebarOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-30 transition-opacity duration-300 animate-in fade-in"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
+
       {/* 1. Collapsible Sidebar (Only if user logged in) */}
-      {user && <Sidebar />}
+      {user && (
+        <Sidebar mobileOpen={mobileSidebarOpen} setMobileOpen={setMobileSidebarOpen} />
+      )}
 
       {/* 2. Scrollable content panel */}
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
         {/* Header (Only if user logged in) */}
-        {user && <Header />}
+        {user && <Header onMenuClick={() => setMobileSidebarOpen(true)} />}
 
         {/* Content body space */}
-        <main className="flex-1 overflow-y-auto p-6 bg-background/50 relative">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-background/50 relative">
           {children}
         </main>
 
         {/* 3. Floating Upload Status panel (Bottom Right) */}
         {user && hasUploads && (
-          <div className="fixed bottom-6 right-6 w-96 glass border border-border/80 rounded-2xl shadow-2xl p-4 z-50 animate-in slide-in-from-bottom-5 duration-300">
+          <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-[calc(100vw-2rem)] sm:w-96 glass border border-border/80 rounded-2xl shadow-2xl p-4 z-50 animate-in slide-in-from-bottom-5 duration-300">
             <div className="flex items-center justify-between pb-3 border-b border-border/60">
               <span className="font-bold text-xs flex items-center gap-2 text-foreground">
                 <CloudUpload className="text-primary" size={16} />

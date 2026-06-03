@@ -2,9 +2,13 @@
 
 import React, { useRef, useState } from "react";
 import { useApp } from "@/context/AppContext";
-import { Search, Upload, Bell, CheckCircle, AlertTriangle, AlertCircle, Info, X } from "lucide-react";
+import { Search, Upload, Bell, CheckCircle, AlertTriangle, AlertCircle, Info, X, Menu } from "lucide-react";
 
-export default function Header() {
+interface HeaderProps {
+  onMenuClick: () => void;
+}
+
+export default function Header({ onMenuClick }: HeaderProps) {
   const {
     user,
     searchQuery,
@@ -43,7 +47,7 @@ export default function Header() {
   };
 
   return (
-    <header className="glass border-b border-border h-16 px-6 flex items-center justify-between sticky top-0 z-10">
+    <header className="glass border-b border-border h-16 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-10">
       {/* Hidden File Input for instant uploads */}
       <input
         type="file"
@@ -54,26 +58,38 @@ export default function Header() {
         className="hidden"
       />
 
-      {/* Dynamic Search Bar */}
-      <div className="relative w-96 max-w-lg">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search by filename, tags..."
-          className="w-full bg-secondary/60 hover:bg-secondary/80 focus:bg-secondary border border-border/40 focus:border-primary/50 text-foreground text-sm pl-11 pr-4 py-2 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary/30 transition-all placeholder:text-muted-foreground/60"
-        />
+      <div className="flex items-center flex-1 min-w-0 mr-4">
+        {/* Mobile Hamburger menu */}
+        <button
+          onClick={onMenuClick}
+          className="md:hidden mr-3 p-2 rounded-xl hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+        >
+          <Menu size={20} />
+        </button>
+
+        {/* Dynamic Search Bar */}
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by filename, tags..."
+            className="w-full bg-secondary/60 hover:bg-secondary/80 focus:bg-secondary border border-border/40 focus:border-primary/50 text-foreground text-sm pl-11 pr-4 py-2 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary/30 transition-all placeholder:text-muted-foreground/60"
+          />
+        </div>
       </div>
 
       {/* Quick Action Buttons */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4 shrink-0">
         {/* Upload Trigger */}
         <button
           onClick={handleUploadClick}
-          className="flex items-center gap-2 bg-gradient-to-r from-primary to-accent hover:from-primary/95 hover:to-accent/95 text-white font-semibold text-xs px-4.5 py-2.5 rounded-xl cursor-pointer shadow-md hover:shadow-lg hover:shadow-primary/10 active:scale-98 transition-all"
+          className="flex items-center gap-2 bg-gradient-to-r from-primary to-accent hover:from-primary/95 hover:to-accent/95 text-white font-semibold text-xs px-3 py-2.5 sm:px-4.5 sm:py-2.5 rounded-xl cursor-pointer shadow-md hover:shadow-lg hover:shadow-primary/10 active:scale-98 transition-all"
+          title="Upload Media"
         >
-          <Upload size={15} /> Upload Media
+          <Upload size={15} />
+          <span className="hidden sm:inline">Upload Media</span>
         </button>
 
         {/* Notifications Icon and dropdown */}
@@ -124,7 +140,7 @@ export default function Header() {
         </div>
 
         {/* User Info Capsule */}
-        <div className="flex items-center gap-3 pl-4 border-l border-border">
+        <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-4 border-l border-border">
           <div className="text-right hidden sm:block">
             <p className="text-xs font-bold text-foreground">{user.name || "Media Owner"}</p>
             <span className="text-[10px] font-bold text-primary px-2 py-0.5 rounded-full bg-primary/10 mt-0.5 inline-block">

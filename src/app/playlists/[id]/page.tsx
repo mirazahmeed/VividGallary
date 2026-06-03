@@ -284,40 +284,6 @@ export default function PlaylistDetailPage() {
 
   const currentSlideItem = playlist.items[currentSlideIndex]?.media;
 
-  const [slideBlobUrl, setSlideBlobUrl] = useState<string>("");
-  const [slideBlobLoading, setSlideBlobLoading] = useState(false);
-
-  useEffect(() => {
-    setSlideBlobUrl("");
-    if (currentSlideItem && currentSlideItem.type === "IMAGE") {
-      setSlideBlobLoading(true);
-      const controller = new AbortController();
-      const fetchImage = async () => {
-        try {
-          const response = await fetch(currentSlideItem.url, { signal: controller.signal });
-          if (!response.ok) throw new Error("Fetch failed");
-          const blob = await response.blob();
-          const localUrl = URL.createObjectURL(blob);
-          setSlideBlobUrl(localUrl);
-        } catch (err: any) {
-          if (err.name !== "AbortError") {
-            console.error("Failed to load slide image blob", err);
-            setSlideBlobUrl(currentSlideItem.url);
-          }
-        } finally {
-          setSlideBlobLoading(false);
-        }
-      };
-      fetchImage();
-      return () => {
-        controller.abort();
-        if (slideBlobUrl && slideBlobUrl.startsWith("blob:")) {
-          URL.revokeObjectURL(slideBlobUrl);
-        }
-      };
-    }
-  }, [currentSlideItem]);
-
   return (
     <div className="space-y-6 max-w-6xl mx-auto animate-in fade-in duration-300 relative min-h-[80vh]">
       {/* 1. Header Toolbar */}
@@ -338,10 +304,10 @@ export default function PlaylistDetailPage() {
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           <button
             onClick={handleDeletePlaylist}
-            className="p-2.5 rounded-xl border border-destructive/20 hover:bg-destructive/15 text-destructive cursor-pointer transition-colors shadow-sm"
+            className="p-2.5 rounded-xl border border-destructive/20 hover:bg-destructive/15 text-destructive cursor-pointer transition-colors shadow-sm shrink-0"
             title="Delete playlist"
           >
             <Trash size={16} />
@@ -349,9 +315,11 @@ export default function PlaylistDetailPage() {
 
           <button
             onClick={handleOpenAddMedia}
-            className="flex items-center gap-1.5 border border-border/80 hover:border-primary/45 bg-secondary/60 hover:bg-secondary text-foreground text-xs font-bold px-4.5 py-2.5 rounded-xl cursor-pointer hover:shadow transition-all"
+            className="flex items-center gap-1.5 border border-border/80 hover:border-primary/45 bg-secondary/60 hover:bg-secondary text-foreground text-xs font-bold px-3 py-2.5 sm:px-4.5 sm:py-2.5 rounded-xl cursor-pointer hover:shadow transition-all shrink-0"
+            title="Add Media"
           >
-            <Plus size={14} /> Add Media
+            <Plus size={14} />
+            <span className="hidden sm:inline">Add Media</span>
           </button>
 
           <button
@@ -365,9 +333,12 @@ export default function PlaylistDetailPage() {
               setIsPlayingSlideshow(true);
             }}
             disabled={playlist.items.length === 0}
-            className="flex items-center gap-1.5 bg-gradient-to-r from-primary to-accent hover:from-primary/95 hover:to-accent/95 text-white text-xs font-bold px-5 py-2.5 rounded-xl cursor-pointer shadow-md hover:shadow-lg transition-all active:scale-98 disabled:opacity-50"
+            className="flex items-center gap-1.5 bg-gradient-to-r from-primary to-accent hover:from-primary/95 hover:to-accent/95 text-white text-xs font-bold px-3.5 py-2.5 sm:px-5 sm:py-2.5 rounded-xl cursor-pointer shadow-md hover:shadow-lg transition-all active:scale-98 disabled:opacity-50 shrink-0"
+            title="Play Slideshow"
           >
-            <Play size={14} fill="currentColor" /> Play Slideshow
+            <Play size={14} fill="currentColor" />
+            <span className="hidden sm:inline">Play Slideshow</span>
+            <span className="sm:hidden">Play</span>
           </button>
         </div>
       </div>
@@ -554,30 +525,30 @@ export default function PlaylistDetailPage() {
             </div>
 
             {/* Speeds and playback toggles */}
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1.5 text-xs text-white/70">
-                <span className="text-[8px] font-bold uppercase tracking-wider">Delay: {slideshowSpeed}s</span>
+            <div className="flex items-center gap-2 sm:gap-4">
+              <div className="flex items-center gap-1 sm:gap-1.5 text-xs text-white/70">
+                <span className="text-[8px] font-bold uppercase tracking-wider hidden sm:inline">Delay: {slideshowSpeed}s</span>
                 <input
                   type="range"
                   min={1}
                   max={10}
                   value={slideshowSpeed}
                   onChange={(e) => setSlideshowSpeed(Number(e.target.value))}
-                  className="w-20 accent-primary h-1 rounded bg-white/20 focus:outline-none cursor-pointer"
+                  className="w-16 sm:w-20 accent-primary h-1 rounded bg-white/20 focus:outline-none cursor-pointer"
                 />
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={() => setSlideshowPaused(!slideshowPaused)}
-                  className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white cursor-pointer active:scale-95 transition-all"
+                  className="p-3 sm:p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white cursor-pointer active:scale-95 transition-all min-w-[40px] min-h-[40px] flex items-center justify-center"
                   title={slideshowPaused ? "Resume autoplay" : "Pause autoplay"}
                 >
                   {slideshowPaused ? <Play size={15} fill="currentColor" /> : <Pause size={15} />}
                 </button>
                 <button
                   onClick={() => setIsPlayingSlideshow(false)}
-                  className="p-2.5 rounded-xl bg-white/10 hover:bg-rose-500/20 text-white hover:text-rose-500 cursor-pointer active:scale-95 transition-all"
+                  className="p-3 sm:p-2.5 rounded-xl bg-white/10 hover:bg-rose-500/20 text-white hover:text-rose-500 cursor-pointer active:scale-95 transition-all min-w-[40px] min-h-[40px] flex items-center justify-center"
                   title="Close presentation"
                 >
                   <X size={15} />
@@ -611,13 +582,8 @@ export default function PlaylistDetailPage() {
 
             {currentSlideItem.type === "IMAGE" ? (
               <div className="relative">
-                {slideBlobLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-10 rounded-lg">
-                    <Loader2 className="animate-spin text-primary" size={32} />
-                  </div>
-                )}
                 <img
-                  src={slideBlobUrl || undefined}
+                  src={currentSlideItem.url}
                   alt={currentSlideItem.filename}
                   className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl transition-all duration-500 ease-out"
                 />
@@ -634,21 +600,21 @@ export default function PlaylistDetailPage() {
           </div>
 
           {/* Bottom quick navigation arrows bar */}
-          <div className="p-4 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-center gap-6 text-white relative z-10">
+          <div className="p-4 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-center gap-4 sm:gap-6 text-white relative z-10 w-full">
             <button
               onClick={handlePrevSlide}
-              className="text-xs font-bold bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl active:scale-95 transition-all cursor-pointer"
+              className="text-xs font-bold bg-white/10 hover:bg-white/20 px-4 py-3 sm:py-2 rounded-xl active:scale-95 transition-all cursor-pointer min-w-[44px]"
             >
-              Previous Slide
+              Prev
             </button>
-            <span className="text-[11px] font-black text-white/80 select-none">
+            <span className="text-[11px] font-black text-white/80 select-none truncate max-w-[150px] sm:max-w-xs">
               {currentSlideItem.filename}
             </span>
             <button
               onClick={handleNextSlide}
-              className="text-xs font-bold bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl active:scale-95 transition-all cursor-pointer"
+              className="text-xs font-bold bg-white/10 hover:bg-white/20 px-4 py-3 sm:py-2 rounded-xl active:scale-95 transition-all cursor-pointer min-w-[44px]"
             >
-              Next Slide
+              Next
             </button>
           </div>
         </div>

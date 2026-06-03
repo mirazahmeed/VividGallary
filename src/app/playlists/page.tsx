@@ -102,7 +102,7 @@ export default function PlaylistsPage() {
   return (
     <div className="space-y-6 max-w-6xl mx-auto animate-in fade-in duration-300 relative min-h-[80vh]">
       {/* 1. Header Toolbar */}
-      <div className="flex items-center justify-between border-b border-border/60 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-5">
         <div>
           <h1 className="text-2xl font-black text-foreground">Mixed-Media Playlists</h1>
           <p className="text-xs text-muted-foreground mt-1">
@@ -111,7 +111,7 @@ export default function PlaylistsPage() {
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 bg-gradient-to-r from-primary to-accent hover:from-primary/95 hover:to-accent/95 text-white font-semibold text-xs px-4.5 py-2.5 rounded-xl cursor-pointer shadow-md hover:shadow-lg transition-all active:scale-98"
+          className="flex items-center gap-2 bg-gradient-to-r from-primary to-accent hover:from-primary/95 hover:to-accent/95 text-white font-semibold text-xs px-4.5 py-2.5 rounded-xl cursor-pointer shadow-md hover:shadow-lg transition-all active:scale-98 self-start sm:self-auto shrink-0"
         >
           <Plus size={15} /> Create Playlist
         </button>

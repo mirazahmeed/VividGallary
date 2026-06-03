@@ -95,7 +95,7 @@ export default function DashboardPage() {
       {/* 1. Header Hero Panel */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black tracking-tight text-foreground">
+          <h1 className="text-xl sm:text-3xl font-black tracking-tight text-foreground">
             Welcome back, <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">{user.name || "Media Host"}</span>
           </h1>
           <p className="text-xs text-muted-foreground mt-1">

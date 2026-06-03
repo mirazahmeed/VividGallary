@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import {
   Play,
   Pause,
@@ -12,7 +12,9 @@ import {
   Settings,
   Tv,
   RotateCcw,
-  Loader2
+  Loader2,
+  SkipBack,
+  SkipForward
 } from "lucide-react";
 
 interface CustomVideoPlayerProps {
@@ -47,9 +49,10 @@ export default function CustomVideoPlayer({
   const [loading, setLoading] = useState(true);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
 
-  // Blob URL states for security
-  const [videoBlobUrl, setVideoBlobUrl] = useState<string>("");
-  const [blobLoading, setBlobLoading] = useState(false);
+  // Double-tap seek feedback
+  const [seekFeedback, setSeekFeedback] = useState<"left" | "right" | null>(null);
+  const doubleTapTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTapRef = useRef<{ time: number; x: number }>({ time: 0, x: 0 });
 
   // Controls auto-hide timer
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -60,50 +63,6 @@ export default function CustomVideoPlayer({
     setCurrentTime(0);
     setDuration(0);
     setLoading(true);
-    setVideoBlobUrl("");
-
-    if (!src) return;
-
-    if (src.startsWith("blob:")) {
-      setVideoBlobUrl(src);
-      setLoading(false);
-      return;
-    }
-
-    setBlobLoading(true);
-    const controller = new AbortController();
-
-    const fetchVideo = async () => {
-      try {
-        const response = await fetch(src, { signal: controller.signal });
-        if (!response.ok) throw new Error("Fetch failed");
-        const blob = await response.blob();
-        const localUrl = URL.createObjectURL(blob);
-        setVideoBlobUrl(localUrl);
-      } catch (err: any) {
-        if (err.name !== "AbortError") {
-          console.error("Failed to load video blob, falling back to direct URL", err);
-          setVideoBlobUrl(src);
-        }
-      } finally {
-        setBlobLoading(false);
-        // Trigger load in the video tag once url is set
-        setTimeout(() => {
-          if (videoRef.current) {
-            videoRef.current.load();
-          }
-        }, 50);
-      }
-    };
-
-    fetchVideo();
-
-    return () => {
-      controller.abort();
-      if (videoBlobUrl && videoBlobUrl.startsWith("blob:")) {
-        URL.revokeObjectURL(videoBlobUrl);
-      }
-    };
   }, [src]);
 
   // Handle controls visibility fade out
@@ -117,7 +76,7 @@ export default function CustomVideoPlayer({
         setShowControls(false);
         setShowSpeedMenu(false);
       }
-    }, 2500);
+    }, 3000);
   };
 
   useEffect(() => {
@@ -165,6 +124,12 @@ export default function CustomVideoPlayer({
     videoRef.current.currentTime = seekTime;
     setCurrentTime(seekTime);
     resetControlsTimeout();
+  };
+
+  const seekBy = (seconds: number) => {
+    if (!videoRef.current) return;
+    videoRef.current.currentTime = Math.max(0, Math.min(duration, videoRef.current.currentTime + seconds));
+    setCurrentTime(videoRef.current.currentTime);
   };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -223,7 +188,7 @@ export default function CustomVideoPlayer({
   const handleDownload = (e: React.MouseEvent) => {
     e.stopPropagation();
     const link = document.createElement("a");
-    link.href = videoBlobUrl || src;
+    link.href = src;
     link.download = filename;
     document.body.appendChild(link);
     link.click();
@@ -238,6 +203,41 @@ export default function CustomVideoPlayer({
     return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
   };
 
+  // Double-tap to seek handler for touch
+  const handleVideoTap = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    const now = Date.now();
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const clientX = "touches" in e ? e.changedTouches?.[0]?.clientX || 0 : e.clientX;
+    const relativeX = clientX - rect.left;
+    const isLeftHalf = relativeX < rect.width / 2;
+    const timeSinceLastTap = now - lastTapRef.current.time;
+
+    if (timeSinceLastTap < 350) {
+      // Double tap detected
+      if (isLeftHalf) {
+        seekBy(-10);
+        setSeekFeedback("left");
+      } else {
+        seekBy(10);
+        setSeekFeedback("right");
+      }
+      setTimeout(() => setSeekFeedback(null), 600);
+      lastTapRef.current = { time: 0, x: 0 };
+    } else {
+      lastTapRef.current = { time: now, x: clientX };
+      // Single tap — toggle play/pause after a short delay
+      if (doubleTapTimerRef.current) clearTimeout(doubleTapTimerRef.current);
+      doubleTapTimerRef.current = setTimeout(() => {
+        if (Date.now() - lastTapRef.current.time >= 300) {
+          togglePlay();
+        }
+      }, 350);
+    }
+    resetControlsTimeout();
+  }, [duration, isPlaying]);
+
   // Keyboard controls
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === " ") {
@@ -249,6 +249,12 @@ export default function CustomVideoPlayer({
     } else if (e.key === "m") {
       e.preventDefault();
       toggleMute();
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      seekBy(-10);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      seekBy(10);
     }
   };
 
@@ -262,34 +268,43 @@ export default function CustomVideoPlayer({
       className={`relative overflow-hidden rounded-2xl bg-black border border-white/5 flex items-center justify-center group focus:outline-none select-none max-w-full ${className}`}
       style={{ aspectRatio: "16/9" }}
     >
-      {/* Video element */}
+      {/* Video element — uses direct URL, no blob fetching */}
       <video
         ref={videoRef}
-        src={videoBlobUrl || undefined}
+        src={src || undefined}
         autoPlay={autoPlay}
+        preload="metadata"
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
+        onCanPlay={() => setLoading(false)}
+        onWaiting={() => setLoading(true)}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onEnded={onEnded}
-        onClick={togglePlay}
-        onDoubleClick={toggleFullscreen}
+        onClick={handleVideoTap}
         className="w-full h-full object-contain cursor-pointer"
         playsInline
       />
 
       {/* Loading Overlay */}
-      {(loading || blobLoading) && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-30">
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-30 pointer-events-none">
           <Loader2 className="animate-spin text-primary" size={48} />
         </div>
       )}
 
-      {/* Big Center Play/Pause HUD Indicator (Shows briefly or when paused) */}
-      {(!isPlaying || loading) && !loading && (
+      {/* Double-tap seek feedback */}
+      {seekFeedback && (
+        <div className={`absolute top-1/2 -translate-y-1/2 ${seekFeedback === "left" ? "left-8" : "right-8"} bg-white/20 backdrop-blur-md rounded-full p-3 animate-ping pointer-events-none z-20`}>
+          {seekFeedback === "left" ? <SkipBack size={20} className="text-white" /> : <SkipForward size={20} className="text-white" />}
+        </div>
+      )}
+
+      {/* Big Center Play/Pause HUD Indicator */}
+      {!isPlaying && !loading && (
         <button
           onClick={togglePlay}
-          className="absolute w-16 h-16 rounded-full bg-black/50 backdrop-blur-md border border-white/10 text-white flex items-center justify-center hover:scale-110 active:scale-95 transition-transform z-20 shadow-2xl cursor-pointer"
+          className="absolute w-16 h-16 sm:w-16 sm:h-16 rounded-full bg-black/50 backdrop-blur-md border border-white/10 text-white flex items-center justify-center hover:scale-110 active:scale-95 transition-transform z-20 shadow-2xl cursor-pointer"
         >
           <Play size={24} fill="currentColor" className="ml-1" />
         </button>
@@ -297,12 +312,12 @@ export default function CustomVideoPlayer({
 
       {/* Control Bar Overlay */}
       <div
-        className={`absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-4 pb-4 pt-10 flex flex-col gap-3 transition-opacity duration-300 z-20 ${
+        className={`absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-3 sm:px-4 pb-3 sm:pb-4 pt-8 sm:pt-10 flex flex-col gap-2 sm:gap-3 transition-opacity duration-300 z-20 ${
           showControls ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
       >
-        {/* Seek timeline bar */}
-        <div className="flex items-center gap-3 w-full group/seek">
+        {/* Seek timeline bar — taller on mobile for easier touch dragging */}
+        <div className="flex items-center gap-2 sm:gap-3 w-full group/seek">
           <span className="text-[10px] font-mono text-white/80 select-none">
             {formatTime(currentTime)}
           </span>
@@ -312,8 +327,9 @@ export default function CustomVideoPlayer({
             max={duration || 100}
             value={currentTime}
             onChange={handleSeekChange}
-            className="flex-1 h-1.5 rounded-full bg-white/20 accent-primary cursor-pointer hover:h-2 transition-all"
+            className="flex-1 h-2 sm:h-1.5 rounded-full bg-white/20 accent-primary cursor-pointer hover:h-2.5 transition-all"
             style={{
+              touchAction: "none",
               background: `linear-gradient(to right, var(--color-primary, #6366f1) ${
                 (currentTime / (duration || 1)) * 100
               }%, rgba(255,255,255,0.2) ${(currentTime / (duration || 1)) * 100}%)`
@@ -326,17 +342,31 @@ export default function CustomVideoPlayer({
 
         {/* Action Toolbar */}
         <div className="flex items-center justify-between w-full">
-          {/* Left tools: Play, Vol */}
-          <div className="flex items-center gap-3">
+          {/* Left tools: Play, Skip, Vol */}
+          <div className="flex items-center gap-1.5 sm:gap-3">
+            <button
+              onClick={() => seekBy(-10)}
+              className="p-2 min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 rounded-xl bg-white/10 hover:bg-white/20 text-white cursor-pointer active:scale-90 transition-transform hidden sm:flex items-center justify-center"
+              title="Rewind 10s"
+            >
+              <SkipBack size={14} />
+            </button>
             <button
               onClick={togglePlay}
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white cursor-pointer active:scale-90 transition-transform"
+              className="p-2.5 sm:p-2 min-w-[40px] min-h-[40px] sm:min-w-0 sm:min-h-0 rounded-xl bg-white/10 hover:bg-white/20 text-white cursor-pointer active:scale-90 transition-transform flex items-center justify-center"
             >
-              {isPlaying ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" />}
+              {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+            </button>
+            <button
+              onClick={() => seekBy(10)}
+              className="p-2 min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 rounded-xl bg-white/10 hover:bg-white/20 text-white cursor-pointer active:scale-90 transition-transform hidden sm:flex items-center justify-center"
+              title="Forward 10s"
+            >
+              <SkipForward size={14} />
             </button>
 
-            {/* Volume controls */}
-            <div className="flex items-center gap-1.5 group/vol">
+            {/* Volume controls — hidden on mobile */}
+            <div className="hidden sm:flex items-center gap-1.5 group/vol">
               <button
                 onClick={toggleMute}
                 className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white cursor-pointer"
@@ -355,15 +385,15 @@ export default function CustomVideoPlayer({
             </div>
           </div>
 
-          {/* Right tools: Download, Speed, PiP, Fullscreen */}
-          <div className="flex items-center gap-2 relative">
+          {/* Right tools: Speed, PiP, Download, Fullscreen */}
+          <div className="flex items-center gap-1 sm:gap-2 relative">
             {/* Speed settings toggle */}
             <div className="relative">
               <button
                 onClick={() => setShowSpeedMenu(!showSpeedMenu)}
-                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[10px] font-black cursor-pointer px-2.5 flex items-center gap-1"
+                className="p-2 min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[10px] font-black cursor-pointer px-2 sm:px-2.5 flex items-center gap-1 justify-center"
               >
-                <Settings size={14} /> {playbackRate}x
+                <Settings size={14} /> <span className="hidden sm:inline">{playbackRate}x</span>
               </button>
 
               {/* Speed Popover Menu */}
@@ -373,7 +403,7 @@ export default function CustomVideoPlayer({
                     <button
                       key={speed}
                       onClick={() => changeSpeed(speed)}
-                      className={`w-full text-left px-3 py-1.5 text-[10px] font-bold transition-colors hover:bg-white/10 ${
+                      className={`w-full text-left px-3 py-2 sm:py-1.5 text-[11px] sm:text-[10px] font-bold transition-colors hover:bg-white/10 ${
                         playbackRate === speed ? "text-primary font-black" : "text-white/80"
                       }`}
                     >
@@ -384,10 +414,10 @@ export default function CustomVideoPlayer({
               )}
             </div>
 
-            {/* PiP */}
+            {/* PiP — hidden on mobile */}
             <button
               onClick={togglePiP}
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white cursor-pointer"
+              className="hidden sm:flex p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white cursor-pointer items-center justify-center"
               title="Picture in Picture"
             >
               <Tv size={14} />
@@ -397,7 +427,7 @@ export default function CustomVideoPlayer({
             {downloadAllowed && (
               <button
                 onClick={handleDownload}
-                className="p-2 rounded-xl bg-primary/20 hover:bg-primary/45 border border-primary/20 text-white cursor-pointer active:scale-95 transition-all"
+                className="p-2 min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 rounded-xl bg-primary/20 hover:bg-primary/45 border border-primary/20 text-white cursor-pointer active:scale-95 transition-all flex items-center justify-center"
                 title="Download video file"
               >
                 <Download size={14} />
@@ -407,7 +437,7 @@ export default function CustomVideoPlayer({
             {/* Fullscreen */}
             <button
               onClick={toggleFullscreen}
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white cursor-pointer"
+              className="p-2 min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 rounded-xl bg-white/10 hover:bg-white/20 text-white cursor-pointer flex items-center justify-center"
               title="Fullscreen"
             >
               {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
