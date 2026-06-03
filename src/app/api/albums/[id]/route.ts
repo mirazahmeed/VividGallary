@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { hashPassword } from "@/lib/crypto";
+import { hashPassword, verifyPassword } from "@/lib/crypto";
 
 export async function GET(
   req: Request,
@@ -72,18 +72,48 @@ export async function GET(
       return NextResponse.json({ error: "Album not found" }, { status: 404 });
     }
 
-    // Access check: User must own the album or have collaborative permissions
-    const hasPermission =
-      album.userId === session.userId ||
-      album.permissions.some((p: any) => p.userId === session.userId) ||
-      album.visibility === "PUBLIC";
+    // Access check: User must own the album, have collaborative permissions, or it's public/password protected
+    const isOwner = album.userId === session.userId;
+    const isCollaborator = album.permissions.some((p: any) => p.userId === session.userId);
+    
+    let hasAccess = isOwner || isCollaborator || album.visibility === "PUBLIC";
 
-    if (!hasPermission) {
-      // If password protected, client must send valid access token or login
+    if (!hasAccess && album.visibility === "PASSWORD_PROTECTED") {
+      const url = new URL(req.url);
+      const password = url.searchParams.get("password") || req.headers.get("x-album-password");
+
+      if (album.passwordHash) {
+        if (!password) {
+          return NextResponse.json({ passwordRequired: true }, { status: 401 });
+        }
+        if (verifyPassword(password, album.passwordHash)) {
+          hasAccess = true;
+        } else {
+          return NextResponse.json({ error: "Invalid password" }, { status: 403 });
+        }
+      } else {
+        hasAccess = true;
+      }
+    }
+
+    if (!hasAccess) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    return NextResponse.json({ success: true, album });
+    let resolvedCoverMedia = album.coverMedia;
+    if (!resolvedCoverMedia && album.media.length > 0) {
+      const firstMediaRelation = album.media[album.media.length - 1];
+      if (firstMediaRelation) {
+        resolvedCoverMedia = firstMediaRelation.media;
+      }
+    }
+
+    const resolvedAlbum = {
+      ...album,
+      coverMedia: resolvedCoverMedia,
+    };
+
+    return NextResponse.json({ success: true, album: resolvedAlbum });
   } catch (error) {
     console.error("Album detail error:", error);
     return NextResponse.json(
@@ -140,6 +170,21 @@ export async function PUT(
         updateData.passwordHash = hashPassword(password);
       } else if (visibility !== "PASSWORD_PROTECTED") {
         updateData.passwordHash = null;
+      }
+
+      // Sync all media visibility inside this album
+      const targetMediaVisibility = visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE";
+      const mediaRelations = await prisma.mediaAlbum.findMany({
+        where: { albumId: id },
+        select: { mediaId: true },
+      });
+      const mediaIds = mediaRelations.map((r: any) => r.mediaId);
+
+      if (mediaIds.length > 0) {
+        await prisma.media.updateMany({
+          where: { id: { in: mediaIds } },
+          data: { visibility: targetMediaVisibility },
+        });
       }
     }
 

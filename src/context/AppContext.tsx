@@ -107,6 +107,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
+      // 1. Firebase client signout (imported dynamically to safely handle server-side environments)
+      const { signOut } = await import("firebase/auth");
+      const { auth } = await import("@/lib/firebase");
+      await signOut(auth);
+    } catch (err) {
+      console.error("Firebase client signout failed:", err);
+    }
+
+    try {
+      // 2. Clear backend session
       await fetch("/api/auth/logout", { method: "POST" });
       setUser(null);
       router.push("/login");

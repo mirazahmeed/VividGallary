@@ -20,7 +20,11 @@ import {
   UserCheck,
   Lock,
   Globe,
-  Key
+  Key,
+  Settings,
+  Share2,
+  Copy,
+  X
 } from "lucide-react";
 
 interface Collaborator {
@@ -60,6 +64,33 @@ export default function AlbumDetailPage() {
   const [selectedMediaIds, setSelectedMediaIds] = useState<string[]>([]);
   const [isSelectMode, setIsSelectMode] = useState(false);
 
+  // Password states
+  const [passwordRequired, setPasswordRequired] = useState(false);
+  const [password, setPassword] = useState("");
+  const [verifyingPassword, setVerifyingPassword] = useState(false);
+  const [verifiedPassword, setVerifiedPassword] = useState<string | null>(null);
+
+  // Manage Album Modal states
+  const [showManageModal, setShowManageModal] = useState(false);
+  const [manageTab, setManageTab] = useState<"general" | "collaborators" | "shares">("general");
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editVisibility, setEditVisibility] = useState("PRIVATE");
+  const [editPassword, setEditPassword] = useState("");
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  // Collaborator invitation states
+  const [collabEmail, setCollabEmail] = useState("");
+  const [collabRole, setCollabRole] = useState<"VIEWER" | "CONTRIBUTOR" | "EDITOR">("VIEWER");
+  const [submittingCollab, setSubmittingCollab] = useState(false);
+
+  // Share link states
+  const [sharesList, setSharesList] = useState<any[]>([]);
+  const [loadingShares, setLoadingShares] = useState(false);
+  const [shareDurationDays, setShareDurationDays] = useState<number | null>(null);
+  const [shareDownloadPermission, setShareDownloadPermission] = useState(true);
+  const [generatingShare, setGeneratingShare] = useState(false);
+
   // Add media dialog states
   const [showAddMediaModal, setShowAddMediaModal] = useState(false);
   const [globalMediaPool, setGlobalMediaPool] = useState<MediaItem[]>([]);
@@ -80,21 +111,213 @@ export default function AlbumDetailPage() {
     }
   }, [user, albumId]);
 
-  const fetchAlbumDetail = async () => {
+  const fetchAlbumDetail = async (pwdAttempt?: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/albums/${albumId}`);
+      const activePassword = pwdAttempt || verifiedPassword;
+      const url = activePassword 
+        ? `/api/albums/${albumId}?password=${encodeURIComponent(activePassword)}` 
+        : `/api/albums/${albumId}`;
+      const res = await fetch(url);
+      const data = await res.json();
       if (res.ok) {
-        const data = await res.json();
         setAlbum(data.album);
+        setEditName(data.album.name);
+        setEditDescription(data.album.description || "");
+        setEditVisibility(data.album.visibility);
+        if (activePassword) {
+          setVerifiedPassword(activePassword);
+        }
+        setPasswordRequired(false);
+      } else if (res.status === 401 && data.passwordRequired) {
+        setPasswordRequired(true);
       } else {
-        addNotification("Access Denied", "Folder access denied or requires verification", "warning");
+        addNotification("Access Denied", data.error || "Folder access denied or requires verification", "warning");
         router.push("/albums");
       }
     } catch {
       addNotification("Error", "Failed to retrieve album detail", "error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!password) return;
+    setVerifyingPassword(true);
+    await fetchAlbumDetail(password);
+    setVerifyingPassword(false);
+  };
+
+  const fetchShares = async () => {
+    setLoadingShares(true);
+    try {
+      const res = await fetch("/api/shares");
+      if (res.ok) {
+        const data = await res.json();
+        const albumShares = data.shares.filter((s: any) => s.albumId === albumId);
+        setSharesList(albumShares);
+      }
+    } catch {
+      addNotification("Error", "Failed to load share links", "error");
+    } finally {
+      setLoadingShares(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showManageModal && manageTab === "shares") {
+      fetchShares();
+    }
+  }, [showManageModal, manageTab]);
+
+  const handleAddCollaborator = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!collabEmail.trim()) return;
+    setSubmittingCollab(true);
+    try {
+      const res = await fetch(`/api/albums/${albumId}/permissions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: collabEmail, role: collabRole }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addNotification("Success", `Collaborator ${collabEmail} invited successfully`, "success");
+        setCollabEmail("");
+        fetchAlbumDetail();
+      } else {
+        addNotification("Error", data.error || "Failed to add collaborator", "error");
+      }
+    } catch {
+      addNotification("Error", "Failed to add collaborator", "error");
+    } finally {
+      setSubmittingCollab(false);
+    }
+  };
+
+  const handleUpdateCollaboratorRole = async (userId: string, role: string) => {
+    try {
+      const res = await fetch(`/api/albums/${albumId}/permissions`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, role }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addNotification("Success", "Collaborator role updated", "success");
+        fetchAlbumDetail();
+      } else {
+        addNotification("Error", data.error || "Failed to update role", "error");
+      }
+    } catch {
+      addNotification("Error", "Failed to update role", "error");
+    }
+  };
+
+  const handleRemoveCollaborator = async (userId: string) => {
+    if (!window.confirm("Are you sure you want to remove this collaborator?")) return;
+    try {
+      const res = await fetch(`/api/albums/${albumId}/permissions`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addNotification("Success", "Collaborator removed successfully", "success");
+        fetchAlbumDetail();
+      } else {
+        addNotification("Error", data.error || "Failed to remove collaborator", "error");
+      }
+    } catch {
+      addNotification("Error", "Failed to remove collaborator", "error");
+    }
+  };
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editName.trim()) return;
+    setSavingSettings(true);
+    try {
+      const payload: any = {
+        name: editName,
+        description: editDescription || "",
+      };
+
+      if (album?.userId === user?.id) {
+        payload.visibility = editVisibility;
+        if (editVisibility === "PASSWORD_PROTECTED") {
+          payload.password = editPassword || undefined;
+        }
+      }
+
+      const res = await fetch(`/api/albums/${albumId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        addNotification("Success", "Album settings updated successfully", "success");
+        fetchAlbumDetail();
+        setShowManageModal(false);
+      } else {
+        addNotification("Error", data.error || "Failed to update album settings", "error");
+      }
+    } catch {
+      addNotification("Error", "Failed to update settings", "error");
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const handleGenerateShareLink = async () => {
+    setGeneratingShare(true);
+    try {
+      const res = await fetch("/api/shares", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "ALBUM",
+          albumId,
+          durationDays: shareDurationDays,
+          downloadPermission: shareDownloadPermission,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addNotification("Success", "Sharing link generated successfully", "success");
+        fetchShares();
+      } else {
+        addNotification("Error", data.error || "Failed to generate share link", "error");
+      }
+    } catch {
+      addNotification("Error", "Failed to generate share link", "error");
+    } finally {
+      setGeneratingShare(false);
+    }
+  };
+
+  const handleRevokeShareLink = async (shareId: string) => {
+    if (!window.confirm("Are you sure you want to revoke this sharing link? It will stop working immediately.")) return;
+    try {
+      const res = await fetch("/api/shares", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shareId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addNotification("Success", "Share link revoked", "success");
+        fetchShares();
+      } else {
+        addNotification("Error", data.error || "Failed to revoke share link", "error");
+      }
+    } catch {
+      addNotification("Error", "Failed to revoke share link", "error");
     }
   };
 
@@ -211,7 +434,28 @@ export default function AlbumDetailPage() {
     }
   };
 
-  if (loading) {
+  // Set album cover photo/video
+  const handleSetCover = async (mediaId: string) => {
+    try {
+      const res = await fetch(`/api/albums/${albumId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coverMediaId: mediaId }),
+      });
+
+      if (res.ok) {
+        addNotification("Success", "Album cover updated successfully", "success");
+        fetchAlbumDetail();
+      } else {
+        const data = await res.json();
+        addNotification("Error", data.error || "Failed to update album cover", "error");
+      }
+    } catch {
+      addNotification("Error", "Failed to update album cover due to server connection issue", "error");
+    }
+  };
+
+  if (loading && !verifyingPassword) {
     return (
       <div className="h-96 flex flex-col items-center justify-center gap-3 text-muted-foreground text-xs font-bold animate-pulse">
         <Loader2 className="animate-spin text-primary" size={32} />
@@ -220,9 +464,47 @@ export default function AlbumDetailPage() {
     );
   }
 
+  if (passwordRequired) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="absolute -top-40 -left-40 w-96 h-96 bg-primary/20 rounded-full filter blur-3xl" />
+        <div className="w-full max-w-md glass rounded-3xl p-8 border border-border shadow-2xl relative z-10">
+          <div className="flex flex-col items-center mb-8">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center justify-center shadow-md mb-4">
+              <Lock size={22} className="animate-pulse" />
+            </div>
+            <h1 className="text-xl font-black text-foreground">Password Protected</h1>
+            <p className="text-xs text-muted-foreground mt-1 text-center max-w-[280px]">
+              This album folder is locked by the host. Enter the secret access password to unlock.
+            </p>
+          </div>
+
+          <form onSubmit={handlePasswordSubmit} className="space-y-4">
+            <input
+              type="password"
+              placeholder="Enter secure passcode"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-secondary/40 border border-border/80 focus:border-primary/60 text-foreground text-xs px-3 py-3.5 rounded-2xl focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all text-center font-bold"
+              required
+            />
+            <button
+              type="submit"
+              disabled={verifyingPassword}
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-primary to-accent text-white font-bold text-xs shadow-lg cursor-pointer hover:shadow-primary/20 hover:scale-[1.01] transition-all flex items-center justify-center gap-2"
+            >
+              {verifyingPassword ? <Loader2 className="animate-spin" size={16} /> : "Verify passcode"}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   if (!album) return null;
 
   const isOwner = album.userId === user?.id;
+  const canEdit = isOwner || album.permissions.some((p) => p.user.id === user?.id && (p.role === "EDITOR" || p.role === "CONTRIBUTOR"));
 
   const getVisibilityBadge = (mode: string) => {
     switch (mode) {
@@ -295,6 +577,23 @@ export default function AlbumDetailPage() {
               title="Delete folder"
             >
               <Trash size={16} />
+            </button>
+          )}
+
+          {canEdit && (
+            <button
+              onClick={() => {
+                setEditName(album.name);
+                setEditDescription(album.description || "");
+                setEditVisibility(album.visibility);
+                setEditPassword("");
+                setManageTab("general");
+                setShowManageModal(true);
+              }}
+              className="flex items-center gap-1.5 border border-border/80 hover:border-primary/45 bg-secondary/60 hover:bg-secondary text-foreground text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer hover:shadow transition-all"
+              title="Manage settings and collaboration"
+            >
+              <Settings size={14} /> Manage Album
             </button>
           )}
 
@@ -453,6 +752,27 @@ export default function AlbumDetailPage() {
                       <span className="w-4.5 h-4.5 rounded border border-white/60 block" />
                     )}
                   </div>
+                )}
+
+                {/* Cover Photo Badge / Set Cover Button */}
+                {album.coverMediaId === item.id ? (
+                  <div className="absolute top-3 right-3 px-2.5 py-1.5 rounded-xl bg-purple-600/90 backdrop-blur-md border border-purple-400/30 text-white text-[9px] font-extrabold flex items-center gap-1 shadow-md z-10 select-none">
+                    <PhotoIcon size={10} /> Cover Photo
+                  </div>
+                ) : (
+                  canEdit && !isSelectMode && (
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        await handleSetCover(item.id);
+                      }}
+                      className="absolute top-3 right-3 p-1.5 rounded-xl bg-black/60 hover:bg-purple-600/90 backdrop-blur-md border border-white/10 text-white text-[10px] font-bold flex items-center gap-1 shadow-md z-10 opacity-0 group-hover:opacity-100 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                      title="Set as Album Cover"
+                    >
+                      <PhotoIcon size={12} />
+                      <span className="hidden sm:inline">Set Cover</span>
+                    </button>
+                  )
                 )}
 
                 {/* Hover overlay details */}
@@ -623,6 +943,334 @@ export default function AlbumDetailPage() {
           onNext={activeLightboxIndex < albumMediaItems.length - 1 ? handleNextLightbox : undefined}
           onUpdate={fetchAlbumDetail}
         />
+      )}
+
+      {/* 9. Album Manage Modal */}
+      {showManageModal && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200">
+          <div className="w-full max-w-lg glass rounded-3xl p-6 border border-border shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-4 border-b border-border/60 pb-3">
+                <h2 className="text-base font-black text-foreground">Manage Album Settings</h2>
+                <button
+                  onClick={() => setShowManageModal(false)}
+                  className="p-1.5 rounded-xl hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Modal Tabs */}
+              <div className="flex border-b border-border/60 mb-6 gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setManageTab("general")}
+                  className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                    manageTab === "general" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  General Settings
+                </button>
+                {isOwner && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setManageTab("collaborators")}
+                      className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                        manageTab === "collaborators" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Collaborators ({album.permissions.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManageTab("shares")}
+                      className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                        manageTab === "shares" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Share Links ({sharesList.length})
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* General Settings Tab */}
+              {manageTab === "general" && (
+                <form onSubmit={handleSaveSettings} className="space-y-4">
+                  <div>
+                    <label className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wider block mb-1">Album Title</label>
+                    <input
+                      type="text"
+                      required
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="w-full bg-secondary/50 border border-border focus:border-primary/60 text-foreground text-xs px-3 py-2.5 rounded-xl focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wider block mb-1">Description</label>
+                    <textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      rows={3}
+                      className="w-full bg-secondary/50 border border-border focus:border-primary/60 text-foreground text-xs px-3 py-2 rounded-xl focus:outline-none resize-none"
+                    />
+                  </div>
+
+                  {isOwner ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wider block mb-1">Visibility Mode</label>
+                        <select
+                          value={editVisibility}
+                          onChange={(e) => setEditVisibility(e.target.value)}
+                          className="w-full bg-secondary/50 border border-border text-foreground text-xs px-2.5 py-2.5 rounded-xl focus:outline-none"
+                        >
+                          <option value="PRIVATE">Private Link</option>
+                          <option value="PUBLIC">Public Access</option>
+                          <option value="PASSWORD_PROTECTED">Password Safe</option>
+                        </select>
+                      </div>
+
+                      {editVisibility === "PASSWORD_PROTECTED" && (
+                        <div>
+                          <label className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wider block mb-1">New Password</label>
+                          <input
+                            type="password"
+                            placeholder="Leave blank to keep current"
+                            value={editPassword}
+                            onChange={(e) => setEditPassword(e.target.value)}
+                            className="w-full bg-secondary/50 border border-border focus:border-primary/60 text-foreground text-xs px-3 py-2.5 rounded-xl focus:outline-none"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-secondary/30 border border-border/40 rounded-xl">
+                      <span className="text-[9px] font-extrabold text-muted-foreground uppercase block mb-1">Visibility Mode</span>
+                      <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                        {album.visibility === "PUBLIC" ? <Globe size={12} /> : album.visibility === "PASSWORD_PROTECTED" ? <Key size={12} /> : <Lock size={12} />}
+                        {album.visibility} (Managed by Owner)
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-4 border-t border-border/40 mt-6">
+                    <button
+                      type="button"
+                      onClick={() => setShowManageModal(false)}
+                      className="flex-1 py-2.5 rounded-xl bg-secondary/50 hover:bg-secondary border border-border text-foreground font-bold text-xs cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={savingSettings}
+                      className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-primary to-accent text-white font-bold text-xs shadow hover:shadow-primary/20 cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                    >
+                      {savingSettings ? <Loader2 className="animate-spin" size={16} /> : "Save Changes"}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Collaborators Tab */}
+              {manageTab === "collaborators" && isOwner && (
+                <div className="space-y-6">
+                  {/* Invite form */}
+                  <form onSubmit={handleAddCollaborator} className="bg-secondary/20 p-4 border border-border/40 rounded-2xl space-y-3">
+                    <h4 className="text-[10px] font-extrabold text-foreground uppercase tracking-wider">Invite Collaborator</h4>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="email"
+                        required
+                        placeholder="Collaborator's email address"
+                        value={collabEmail}
+                        onChange={(e) => setCollabEmail(e.target.value)}
+                        className="flex-1 bg-secondary/50 border border-border focus:border-primary/60 text-foreground text-xs px-3 py-2 rounded-xl focus:outline-none"
+                      />
+                      <select
+                        value={collabRole}
+                        onChange={(e) => setCollabRole(e.target.value as any)}
+                        className="bg-secondary/50 border border-border text-foreground text-xs px-2.5 py-2 rounded-xl focus:outline-none"
+                      >
+                        <option value="VIEWER">Viewer</option>
+                        <option value="CONTRIBUTOR">Contributor</option>
+                        <option value="EDITOR">Editor</option>
+                      </select>
+                      <button
+                        type="submit"
+                        disabled={submittingCollab}
+                        className="bg-primary hover:bg-primary/95 text-white font-bold text-xs px-4 py-2 rounded-xl shadow cursor-pointer disabled:opacity-50 shrink-0 flex items-center justify-center"
+                      >
+                        {submittingCollab ? <Loader2 className="animate-spin" size={14} /> : "Add"}
+                      </button>
+                    </div>
+                  </form>
+
+                  {/* Collaborators list */}
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    <h4 className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">Active Collaborators ({album.permissions.length})</h4>
+                    {album.permissions.length === 0 ? (
+                      <div className="text-center py-6 text-xs text-muted-foreground">
+                        No collaborators added yet. Add users by email to collaborate!
+                      </div>
+                    ) : (
+                      album.permissions.map((p) => (
+                        <div key={p.id} className="flex items-center justify-between p-3.5 bg-secondary/30 border border-border/45 rounded-xl text-xs gap-3">
+                          <div className="truncate">
+                            <span className="font-extrabold text-foreground block truncate">
+                              {p.user.name || p.user.email}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground block truncate">
+                              {p.user.email}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <select
+                              value={p.role}
+                              onChange={(e) => handleUpdateCollaboratorRole(p.user.id, e.target.value)}
+                              className="bg-secondary/50 border border-border text-foreground text-[11px] px-2 py-1 rounded-lg focus:outline-none"
+                            >
+                              <option value="VIEWER">Viewer</option>
+                              <option value="CONTRIBUTOR">Contributor</option>
+                              <option value="EDITOR">Editor</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveCollaborator(p.user.id)}
+                              className="p-1.5 rounded-lg border border-rose-500/20 text-rose-500 hover:bg-rose-500/10 cursor-pointer transition-colors"
+                              title="Remove collaborator"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Share Links Tab */}
+              {manageTab === "shares" && isOwner && (
+                <div className="space-y-6">
+                  {/* Generate share link form */}
+                  <div className="bg-secondary/20 p-4 border border-border/40 rounded-2xl space-y-3">
+                    <h4 className="text-[10px] font-extrabold text-foreground uppercase tracking-wider">Generate Share Link</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                      <div>
+                        <label className="text-[8px] font-extrabold text-muted-foreground uppercase block mb-1">Expiration</label>
+                        <select
+                          value={shareDurationDays === null ? "never" : shareDurationDays.toString()}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setShareDurationDays(val === "never" ? null : parseInt(val));
+                          }}
+                          className="w-full bg-secondary/50 border border-border text-foreground text-xs px-2.5 py-2 rounded-xl focus:outline-none"
+                        >
+                          <option value="never">Never Expires</option>
+                          <option value="1">1 Day</option>
+                          <option value="7">7 Days</option>
+                          <option value="30">30 Days</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2 pb-2">
+                        <input
+                          type="checkbox"
+                          id="download_perm"
+                          checked={shareDownloadPermission}
+                          onChange={(e) => setShareDownloadPermission(e.target.checked)}
+                          className="rounded border-border text-primary focus:ring-primary/20 h-4 w-4"
+                        />
+                        <label htmlFor="download_perm" className="text-xs font-semibold text-foreground cursor-pointer select-none">
+                          Allow Downloads
+                        </label>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleGenerateShareLink}
+                        disabled={generatingShare}
+                        className="bg-primary hover:bg-primary/95 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+                      >
+                        {generatingShare ? <Loader2 className="animate-spin" size={14} /> : <Share2 size={13} />}
+                        Generate Link
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Share links list */}
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    <h4 className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider font-bold">Active Share Links ({sharesList.length})</h4>
+                    {loadingShares ? (
+                      <div className="text-center py-6 text-xs text-muted-foreground animate-pulse">
+                        Loading share links...
+                      </div>
+                    ) : sharesList.length === 0 ? (
+                      <div className="text-center py-6 text-xs text-muted-foreground">
+                        No share links generated for this album yet.
+                      </div>
+                    ) : (
+                      sharesList.map((share) => {
+                        const shareUrl = `${window.location.origin}/share/${share.token}`;
+                        const isExpired = share.expiresAt && new Date(share.expiresAt) < new Date();
+                        
+                        return (
+                          <div key={share.id} className="p-3.5 bg-secondary/30 border border-border/45 rounded-xl text-xs space-y-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="truncate flex-1">
+                                <span className="font-mono text-[10px] text-muted-foreground bg-secondary px-2 py-0.5 rounded border border-border/40 select-all block truncate font-bold">
+                                  {shareUrl}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(shareUrl);
+                                    addNotification("Copied", "Share link copied to clipboard", "success");
+                                  }}
+                                  className="p-1.5 rounded-lg border border-border bg-secondary/60 hover:bg-secondary text-foreground cursor-pointer transition-colors"
+                                  title="Copy Share Link"
+                                >
+                                  <Copy size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRevokeShareLink(share.id)}
+                                  className="p-1.5 rounded-lg border border-rose-500/20 text-rose-500 hover:bg-rose-500/10 cursor-pointer transition-colors"
+                                  title="Revoke Share Link"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted-foreground font-semibold">
+                              <span>
+                                Downloads: {share.downloadPermission ? "Allowed" : "Blocked"}
+                              </span>
+                              <span>
+                                Expires: {share.expiresAt ? new Date(share.expiresAt).toLocaleDateString() : "Never"}
+                              </span>
+                              {isExpired && (
+                                <span className="text-rose-500 font-extrabold uppercase">
+                                  Expired
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

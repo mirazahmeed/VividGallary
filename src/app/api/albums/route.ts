@@ -26,6 +26,19 @@ export async function GET() {
       },
       include: {
         coverMedia: true,
+        media: {
+          take: 1,
+          orderBy: {
+            addedAt: "asc",
+          },
+          include: {
+            media: {
+              select: {
+                url: true,
+              },
+            },
+          },
+        },
         _count: {
           select: {
             media: true,
@@ -43,7 +56,24 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json({ success: true, albums: ownedAlbums });
+    // Map each album to resolve the first picture as coverMedia if coverMediaId is null
+    const albumsWithCovers = ownedAlbums.map((album) => {
+      let resolvedCoverMedia = album.coverMedia;
+      if (!resolvedCoverMedia && album.media.length > 0) {
+        resolvedCoverMedia = {
+          url: album.media[0].media.url,
+        } as any;
+      }
+      
+      // Remove the extra media field to keep payload clean
+      const { media, ...rest } = album;
+      return {
+        ...rest,
+        coverMedia: resolvedCoverMedia,
+      };
+    });
+
+    return NextResponse.json({ success: true, albums: albumsWithCovers });
   } catch (error) {
     console.error("Albums fetch error:", error);
     return NextResponse.json(

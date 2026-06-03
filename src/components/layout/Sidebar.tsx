@@ -15,7 +15,10 @@ import {
   ChevronRight,
   Sun,
   Moon,
-  LayoutDashboard
+  LayoutDashboard,
+  Compass,
+  UserCheck,
+  Settings
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -27,9 +30,12 @@ export default function Sidebar() {
 
   const menuItems = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
+    { name: "Explore", href: "/explore", icon: Compass },
+    { name: "Following", href: "/following", icon: UserCheck },
     { name: "Gallery", href: "/gallery", icon: GalleryIcon },
     { name: "Albums", href: "/albums", icon: FolderOpen },
     { name: "Playlists", href: "/playlists", icon: PlaySquare },
+    { name: "Settings", href: "/settings", icon: Settings },
   ];
 
   // If user is Admin, render the Admin Control panel route

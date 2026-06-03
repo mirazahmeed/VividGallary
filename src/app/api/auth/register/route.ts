@@ -1,63 +1,64 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { hashPassword } from "@/lib/crypto";
 import { createSession } from "@/lib/auth";
+import { verifyFirebaseToken } from "@/lib/firebase-admin";
 
 export async function POST(req: Request) {
   try {
-    const { email, password, name } = await req.json();
+    const { idToken, name } = await req.json();
 
-    if (!email || !password) {
+    if (!idToken) {
       return NextResponse.json(
-        { error: "Email and password are required" },
+        { error: "Firebase ID token is required" },
         { status: 400 }
       );
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { error: "Invalid email format" },
-        { status: 400 }
-      );
-    }
+    // 1. Verify the client-side Firebase ID Token on server-side
+    const firebaseUser = await verifyFirebaseToken(idToken);
+    const { uid, email, name: firebaseName } = firebaseUser;
 
-    if (password.length < 6) {
-      return NextResponse.json(
-        { error: "Password must be at least 6 characters long" },
-        { status: 400 }
-      );
-    }
-
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
+    // 2. Check if user already exists
+    let user = await prisma.user.findUnique({
       where: { email },
     });
 
-    if (existingUser) {
-      return NextResponse.json(
-        { error: "User already exists with this email" },
-        { status: 409 }
-      );
+    if (user) {
+      // User is already registered locally; establish session (login fallback)
+      await createSession({
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        name: user.name,
+      });
+
+      return NextResponse.json({
+        success: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+        },
+      });
     }
 
-    // Count existing users to decide if this user is the initial Admin
+    // 3. Create the user record in SQLite with Firebase UID as primary key
     const userCount = await prisma.user.count();
     const role = userCount === 0 ? "ADMIN" : "USER";
 
-    const passwordHash = hashPassword(password);
-
-    const user = await prisma.user.create({
+    user = await prisma.user.create({
       data: {
+        id: uid, // Bind Firebase UID directly
         email,
-        passwordHash,
-        name,
+        passwordHash: "firebase-auth",
+        name: name || firebaseName || "Media Member",
         role,
-        storageLimit: role === "ADMIN" ? 107374182400 : 5368709120, // Admins get 100GB, Users get 5GB by default
+        storageLimit: role === "ADMIN" ? 107374182400 : 5368709120, // Admins 100GB, Users 5GB
       },
     });
 
-    // Create session cookie
+    // 4. Create local session using compatible JWT token cookies
     await createSession({
       userId: user.id,
       email: user.email,
@@ -65,12 +66,12 @@ export async function POST(req: Request) {
       name: user.name,
     });
 
-    // Log the initial activity
+    // Log the registration activity
     await prisma.activityLog.create({
       data: {
         userId: user.id,
         action: "USER_REGISTER",
-        details: `Registered as ${role}`,
+        details: `Registered via Firebase as ${role}`,
       },
     });
 
@@ -83,10 +84,10 @@ export async function POST(req: Request) {
         role: user.role,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Registration error:", error);
     return NextResponse.json(
-      { error: "An unexpected error occurred during registration" },
+      { error: error.message || "An unexpected error occurred during registration" },
       { status: 500 }
     );
   }

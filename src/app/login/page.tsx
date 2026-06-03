@@ -4,6 +4,8 @@ import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { ShieldCheck, Mail, Lock, User, Loader2 } from "lucide-react";
+import { auth } from "@/lib/firebase";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 
 export default function LoginPage() {
   const { user, refreshUser, addNotification } = useApp();
@@ -39,13 +41,31 @@ export default function LoginPage() {
 
     setLoading(true);
     const endpoint = isRegister ? "/api/auth/register" : "/api/auth/login";
-    const body = isRegister ? { email, password, name } : { email, password };
 
     try {
+      let idToken = "";
+      
+      if (isRegister) {
+        // 1. Register user in Firebase Auth
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        
+        // 2. Set user display name
+        if (name) {
+          await updateProfile(userCredential.user, { displayName: name });
+        }
+        
+        idToken = await userCredential.user.getIdToken();
+      } else {
+        // 1. Sign in user in Firebase Auth
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        idToken = await userCredential.user.getIdToken();
+      }
+
+      // 2. Exchange Firebase ID Token for local JWT session cookie
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ idToken, name }),
       });
 
       const data = await res.json();
@@ -61,8 +81,24 @@ export default function LoginPage() {
       } else {
         addNotification("Auth Failed", data.error || "Credentials verification failed", "error");
       }
-    } catch {
-      addNotification("Error", "Server connection failed", "error");
+    } catch (err: any) {
+      console.error("Firebase auth error:", err);
+      let errorMsg = "Authentication failed";
+      
+      // Map common Firebase Authentication error codes to human-readable strings
+      if (err.code === "auth/wrong-password" || err.code === "auth/invalid-credential" || err.code === "auth/user-not-found") {
+        errorMsg = "Invalid email or password credentials";
+      } else if (err.code === "auth/email-already-in-use") {
+        errorMsg = "An account already exists with this email address";
+      } else if (err.code === "auth/weak-password") {
+        errorMsg = "Password must be at least 6 characters long";
+      } else if (err.code === "auth/invalid-email") {
+        errorMsg = "Please enter a valid email address format";
+      } else {
+        errorMsg = err.message || errorMsg;
+      }
+      
+      addNotification("Auth Failed", errorMsg, "error");
     } finally {
       setLoading(false);
     }

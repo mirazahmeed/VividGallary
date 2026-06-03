@@ -30,6 +30,8 @@ model User {
   shares       Share[]
   permissions  Permission[]
   activityLogs ActivityLog[]
+  followers    Follow[]      @relation("Following") // Users who follow this user
+  following    Follow[]      @relation("Follower")  // Users this user follows
 }
 
 model Media {
@@ -44,6 +46,7 @@ model Media {
   height       Int?
   duration     Float?        // In seconds, for videos
   resolution   String?       // E.g., "1080p", "4K", for videos
+  visibility   String        @default("PRIVATE") // PUBLIC, PRIVATE
   isFavorite   Boolean       @default(false)
   isArchived   Boolean       @default(false)
   inTrash      Boolean       @default(false)
@@ -227,4 +230,16 @@ model ActivityLog {
   
   userId    String?
   user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String   // The user who is following
+  followingId String   // The user being followed
+  createdAt   DateTime @default(now())
+
+  follower    User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
 }

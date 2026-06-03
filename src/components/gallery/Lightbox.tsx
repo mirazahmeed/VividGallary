@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useApp } from "@/context/AppContext";
+import CustomVideoPlayer from "./CustomVideoPlayer";
 import {
   X,
   Heart,
@@ -17,7 +18,8 @@ import {
   ChevronRight,
   Send,
   Link as LinkIcon,
-  ShieldCheck
+  ShieldCheck,
+  Loader2
 } from "lucide-react";
 
 export interface MediaItem {
@@ -43,6 +45,14 @@ export interface MediaItem {
     user: { id: string; name: string | null; avatarUrl: string | null };
   }>;
   likes: Array<{ id: string; userId: string }>;
+  visibility?: "PUBLIC" | "PRIVATE";
+  user?: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    avatarUrl: string | null;
+    isFollowing?: boolean;
+  };
 }
 
 interface LightboxProps {
@@ -66,19 +76,100 @@ export default function Lightbox({ media, onClose, onPrev, onNext, onUpdate }: L
   const [password, setPassword] = useState("");
   
   const [zoomScale, setZoomScale] = useState(1);
+  const [isFollowingUser, setIsFollowingUser] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+
+  // Blob URL states for image security
+  const [mediaBlobUrl, setMediaBlobUrl] = useState<string>("");
+  const [blobLoading, setBlobLoading] = useState(false);
 
   useEffect(() => {
     if (media && user) {
-      setIsLiked(media.likes.some((like) => like.userId === user.id));
-      setLikesCount(media.likes.length);
+      setIsLiked(media.likes?.some((like) => like.userId === user.id) || false);
+      setLikesCount(media.likes?.length || 0);
       setComments(media.comments || []);
       setZoomScale(1);
       setShareUrl("");
       setShowShareDrawer(false);
+      setIsFollowingUser(!!media.user?.isFollowing);
+      
+      // Blob fetching for secure image rendering
+      setMediaBlobUrl("");
+      if (media.type === "IMAGE") {
+        setBlobLoading(true);
+        const controller = new AbortController();
+
+        const fetchImage = async () => {
+          try {
+            const response = await fetch(media.url, { signal: controller.signal });
+            if (!response.ok) throw new Error("Fetch failed");
+            const blob = await response.blob();
+            const localUrl = URL.createObjectURL(blob);
+            setMediaBlobUrl(localUrl);
+          } catch (err: any) {
+            if (err.name !== "AbortError") {
+              console.error("Failed to load image blob, falling back to direct URL", err);
+              setMediaBlobUrl(media.url);
+            }
+          } finally {
+            setBlobLoading(false);
+          }
+        };
+
+        fetchImage();
+
+        return () => {
+          controller.abort();
+          if (mediaBlobUrl && mediaBlobUrl.startsWith("blob:")) {
+            URL.revokeObjectURL(mediaBlobUrl);
+          }
+        };
+      }
     }
   }, [media, user]);
 
+  const handleDownload = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!media) return;
+    const link = document.createElement("a");
+    link.href = mediaBlobUrl || media.url;
+    link.download = media.filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   if (!media) return null;
+
+  const handleFollowToggle = async () => {
+    if (!media.user || followLoading) return;
+    setFollowLoading(true);
+    try {
+      const res = await fetch("/api/follow", {
+        method: isFollowingUser ? "DELETE" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetUserId: media.user.id }),
+      });
+      if (res.ok) {
+        setIsFollowingUser(!isFollowingUser);
+        addNotification(
+          "Success",
+          isFollowingUser
+            ? `Unfollowed ${media.user.name || media.user.email}`
+            : `Followed ${media.user.name || media.user.email}`,
+          "success"
+        );
+        if (onUpdate) onUpdate();
+      } else {
+        const errData = await res.json();
+        addNotification("Error", errData.error || "Failed to update follow status", "error");
+      }
+    } catch (err) {
+      addNotification("Error", "Failed to update follow status", "error");
+    } finally {
+      setFollowLoading(false);
+    }
+  };
 
   const handleLikeToggle = async () => {
     // Standard mock API call for like updates, then immediately update client state
@@ -168,15 +259,13 @@ export default function Lightbox({ media, onClose, onPrev, onNext, onUpdate }: L
           >
             <Info size={16} />
           </button>
-          <a
-            href={media.url}
-            download={media.filename}
-            target="_blank"
+          <button
+            onClick={handleDownload}
             className="p-2.5 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-white cursor-pointer transition-all flex items-center justify-center"
             title="Download original"
           >
             <Download size={16} />
-          </a>
+          </button>
           <button
             onClick={onClose}
             className="p-2.5 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-white cursor-pointer transition-all"
@@ -210,19 +299,26 @@ export default function Lightbox({ media, onClose, onPrev, onNext, onUpdate }: L
         {/* Media Content Node */}
         <div className="max-w-full max-h-full overflow-hidden flex items-center justify-center">
           {media.type === "IMAGE" ? (
-            <img
-              src={media.url}
-              alt={media.filename}
-              className="max-w-[85vw] max-h-[85vh] object-contain rounded-lg transition-transform duration-200 shadow-2xl"
-              style={{ transform: `scale(${zoomScale})` }}
-              onDoubleClick={() => setZoomScale((prev) => (prev === 1 ? 2.2 : 1))}
-            />
+            <div className="relative flex items-center justify-center">
+              {blobLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-10 rounded-lg">
+                  <Loader2 className="animate-spin text-primary" size={32} />
+                </div>
+              )}
+              <img
+                src={mediaBlobUrl || undefined}
+                alt={media.filename}
+                className="max-w-[85vw] max-h-[85vh] object-contain rounded-lg transition-transform duration-200 shadow-2xl"
+                style={{ transform: `scale(${zoomScale})` }}
+                onDoubleClick={() => setZoomScale((prev) => (prev === 1 ? 2.2 : 1))}
+              />
+            </div>
           ) : (
-            <video
+            <CustomVideoPlayer
               src={media.url}
-              controls
               autoPlay
-              className="max-w-[85vw] max-h-[85vh] rounded-lg shadow-2xl"
+              filename={media.filename}
+              className="max-w-[85vw] max-h-[85vh] shadow-2xl"
             />
           )}
         </div>
@@ -243,6 +339,38 @@ export default function Lightbox({ media, onClose, onPrev, onNext, onUpdate }: L
           </div>
 
           <div className="flex-1 overflow-y-auto p-5 space-y-6">
+            {/* Uploader Profile & Follow Button */}
+            {media.user && (
+              <div className="flex items-center justify-between p-3.5 bg-muted/40 border border-border/40 rounded-2xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white font-bold text-sm shadow overflow-hidden">
+                    {media.user.avatarUrl ? (
+                      <img src={media.user.avatarUrl} alt={media.user.name || ""} className="w-full h-full object-cover" />
+                    ) : (
+                      (media.user.name || media.user.email || "U").substring(0, 2).toUpperCase()
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-foreground leading-tight">{media.user.name || "Anonymous User"}</p>
+                    <p className="text-[10px] text-muted-foreground truncate max-w-[140px]">{media.user.email}</p>
+                  </div>
+                </div>
+                {user && media.user.id !== user.id && (
+                  <button
+                    onClick={handleFollowToggle}
+                    disabled={followLoading}
+                    className={`text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
+                      isFollowingUser
+                        ? "bg-secondary text-foreground hover:bg-secondary/80 border-border"
+                        : "bg-primary text-primary-foreground hover:bg-primary/90 border-primary"
+                    }`}
+                  >
+                    {followLoading ? "..." : isFollowingUser ? "Following" : "Follow"}
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Likes and Share quick buttons */}
             <div className="flex items-center justify-between pb-4 border-b border-border/60">
               <div className="flex items-center gap-3">
@@ -392,7 +520,7 @@ export default function Lightbox({ media, onClose, onPrev, onNext, onUpdate }: L
             <div className="space-y-2">
               <span className="text-[10px] font-extrabold tracking-wider text-muted-foreground uppercase">Associated Tags</span>
               <div className="flex flex-wrap gap-1.5">
-                {media.tags.length === 0 ? (
+                {!media.tags || media.tags.length === 0 ? (
                   <span className="text-xs text-muted-foreground">No tags annotated yet</span>
                 ) : (
                   media.tags.map((t) => (

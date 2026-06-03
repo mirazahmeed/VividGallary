@@ -15,7 +15,9 @@ import {
   FolderPlus,
   Loader2,
   SlidersHorizontal,
-  ChevronDown
+  ChevronDown,
+  Globe,
+  Lock
 } from "lucide-react";
 
 export default function GalleryPage() {
@@ -286,12 +288,23 @@ export default function GalleryPage() {
                   </div>
                 )}
 
-                {/* Favorite badge indicator (Top right) */}
-                {item.isFavorite && (
-                  <div className="absolute top-3 right-3 p-1.5 rounded-lg bg-black/40 backdrop-blur-md border border-white/10 text-rose-500 shadow z-10">
-                    <Heart size={13} fill="currentColor" />
-                  </div>
-                )}
+                {/* Status Badges (Top right) */}
+                <div className="absolute top-3 right-3 flex flex-col gap-1.5 z-10">
+                  {item.isFavorite && (
+                    <div className="p-1.5 rounded-lg bg-black/40 backdrop-blur-md border border-white/10 text-rose-500 shadow">
+                      <Heart size={13} fill="currentColor" />
+                    </div>
+                  )}
+                  {item.visibility === "PUBLIC" ? (
+                    <div className="p-1.5 rounded-lg bg-black/40 backdrop-blur-md border border-white/10 text-emerald-400 shadow" title="Publicly Shared">
+                      <Globe size={13} />
+                    </div>
+                  ) : (
+                    <div className="p-1.5 rounded-lg bg-black/40 backdrop-blur-md border border-white/10 text-amber-500 shadow" title="Private">
+                      <Lock size={13} />
+                    </div>
+                  )}
+                </div>
 
                 {/* Multiselect Checkbox layer */}
                 {(isSelectMode || isSelected) && (
@@ -347,6 +360,26 @@ export default function GalleryPage() {
                 className="flex items-center gap-1.5 hover:bg-secondary text-xs font-bold text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl border border-border/60 transition-colors cursor-pointer"
               >
                 <Archive size={14} /> Archive
+              </button>
+            )}
+
+            {/* Batch Make Public */}
+            {viewState !== "TRASH" && (
+              <button
+                onClick={() => handleBulkAction("MAKE_PUBLIC")}
+                className="flex items-center gap-1.5 hover:bg-secondary text-xs font-bold text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl border border-border/60 transition-colors cursor-pointer"
+              >
+                <Globe size={14} /> Make Public
+              </button>
+            )}
+
+            {/* Batch Make Private */}
+            {viewState !== "TRASH" && (
+              <button
+                onClick={() => handleBulkAction("MAKE_PRIVATE")}
+                className="flex items-center gap-1.5 hover:bg-secondary text-xs font-bold text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl border border-border/60 transition-colors cursor-pointer"
+              >
+                <Lock size={14} /> Make Private
               </button>
             )}
 

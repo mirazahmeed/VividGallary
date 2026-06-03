@@ -40,12 +40,20 @@ export async function POST(
 
     // Add media items (ignoring duplicates)
     const addedItems = [];
+    const targetMediaVisibility = album.visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE";
+    
     for (const mediaId of mediaIds) {
       try {
         const joint = await prisma.mediaAlbum.create({
           data: { mediaId, albumId },
         });
         addedItems.push(joint);
+
+        // Sync media visibility with album visibility
+        await prisma.media.update({
+          where: { id: mediaId },
+          data: { visibility: targetMediaVisibility },
+        });
       } catch {
         // Ignore duplicate key constraints
       }

@@ -116,3 +116,47 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Failed to generate share link" }, { status: 500 });
   }
 }
+
+export async function DELETE(req: Request) {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    const { shareId } = await req.json();
+
+    if (!shareId) {
+      return NextResponse.json({ error: "Share ID is required" }, { status: 400 });
+    }
+
+    const share = await prisma.share.findUnique({
+      where: { id: shareId },
+    });
+
+    if (!share) {
+      return NextResponse.json({ error: "Share link not found" }, { status: 404 });
+    }
+
+    if (share.userId !== session.userId) {
+      return NextResponse.json({ error: "Unauthorized access" }, { status: 403 });
+    }
+
+    await prisma.share.delete({
+      where: { id: shareId },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: session.userId,
+        action: `SHARE_REVOKE_${share.type}`,
+        details: `Revoked share token for ${share.type.toLowerCase()} (token: ${share.token.substring(0, 8)}...)`,
+      },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Share delete error:", error);
+    return NextResponse.json({ error: "Failed to delete share link" }, { status: 500 });
+  }
+}

@@ -88,3 +88,48 @@ export async function PUT(req: Request) {
     );
   }
 }
+
+export async function DELETE(req: Request) {
+  try {
+    const adminSession = await requireAdmin(req as any);
+    const { userId } = await req.json();
+
+    if (!userId) {
+      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+    }
+
+    if (userId === adminSession.userId) {
+      return NextResponse.json({ error: "Admins cannot delete their own account" }, { status: 400 });
+    }
+
+    // Verify target user exists
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!targetUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Delete the user from SQLite (cascades to all Media, Albums, Playlists)
+    await prisma.user.delete({
+      where: { id: userId },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        userId: adminSession.userId,
+        action: "ADMIN_USER_DELETE",
+        details: `Permanently deleted user account: ${targetUser.email} (${targetUser.name || "No Name"})`,
+      },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("Admin user delete error:", error);
+    return NextResponse.json(
+      { error: error.message === "Forbidden" ? "Forbidden" : "Unauthorized" },
+      { status: error.message === "Forbidden" ? 403 : 401 }
+    );
+  }
+}

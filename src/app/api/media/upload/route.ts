@@ -15,6 +15,7 @@ export async function POST(req: Request) {
     const formData = await req.formData();
     const files = formData.getAll("files") as File[];
     const albumId = formData.get("albumId") as string | null;
+    const visibility = (formData.get("visibility") as string) || "PRIVATE";
 
     if (files.length === 0) {
       return NextResponse.json({ error: "No files uploaded" }, { status: 400 });
@@ -87,11 +88,12 @@ export async function POST(req: Request) {
           height,
           duration,
           resolution,
+          visibility: visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE",
           userId: session.userId,
         },
       });
 
-      // If albumId was provided, add file to album
+      // If albumId was provided, add file to album and sync visibility
       if (albumId) {
         // Verify album exists
         const album = await prisma.album.findUnique({
@@ -104,6 +106,15 @@ export async function POST(req: Request) {
               albumId: album.id,
             },
           });
+
+          const targetMediaVisibility = album.visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE";
+          if (media.visibility !== targetMediaVisibility) {
+            await prisma.media.update({
+              where: { id: media.id },
+              data: { visibility: targetMediaVisibility },
+            });
+            media.visibility = targetMediaVisibility;
+          }
         }
       }
 

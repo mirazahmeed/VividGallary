@@ -131,8 +131,12 @@ export default function Header() {
               {user.role}
             </span>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white font-bold text-sm shadow-md">
-            {(user.name || user.email).substring(0, 2).toUpperCase()}
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white font-bold text-sm shadow-md overflow-hidden shrink-0">
+            {user.avatarUrl ? (
+              <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
+            ) : (
+              (user.name || user.email).substring(0, 2).toUpperCase()
+            )}
           </div>
         </div>
       </div>

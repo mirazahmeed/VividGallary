@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useApp } from "@/context/AppContext";
 import { MediaItem } from "@/components/gallery/Lightbox";
+import CustomVideoPlayer from "@/components/gallery/CustomVideoPlayer";
 import {
   ArrowLeft,
   Play,
@@ -282,6 +283,40 @@ export default function PlaylistDetailPage() {
   if (!playlist) return null;
 
   const currentSlideItem = playlist.items[currentSlideIndex]?.media;
+
+  const [slideBlobUrl, setSlideBlobUrl] = useState<string>("");
+  const [slideBlobLoading, setSlideBlobLoading] = useState(false);
+
+  useEffect(() => {
+    setSlideBlobUrl("");
+    if (currentSlideItem && currentSlideItem.type === "IMAGE") {
+      setSlideBlobLoading(true);
+      const controller = new AbortController();
+      const fetchImage = async () => {
+        try {
+          const response = await fetch(currentSlideItem.url, { signal: controller.signal });
+          if (!response.ok) throw new Error("Fetch failed");
+          const blob = await response.blob();
+          const localUrl = URL.createObjectURL(blob);
+          setSlideBlobUrl(localUrl);
+        } catch (err: any) {
+          if (err.name !== "AbortError") {
+            console.error("Failed to load slide image blob", err);
+            setSlideBlobUrl(currentSlideItem.url);
+          }
+        } finally {
+          setSlideBlobLoading(false);
+        }
+      };
+      fetchImage();
+      return () => {
+        controller.abort();
+        if (slideBlobUrl && slideBlobUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(slideBlobUrl);
+        }
+      };
+    }
+  }, [currentSlideItem]);
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto animate-in fade-in duration-300 relative min-h-[80vh]">
@@ -575,19 +610,25 @@ export default function PlaylistDetailPage() {
             `}</style>
 
             {currentSlideItem.type === "IMAGE" ? (
-              <img
-                src={currentSlideItem.url}
-                alt={currentSlideItem.filename}
-                className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl transition-all duration-500 ease-out"
-              />
+              <div className="relative">
+                {slideBlobLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-10 rounded-lg">
+                    <Loader2 className="animate-spin text-primary" size={32} />
+                  </div>
+                )}
+                <img
+                  src={slideBlobUrl || undefined}
+                  alt={currentSlideItem.filename}
+                  className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl transition-all duration-500 ease-out"
+                />
+              </div>
             ) : (
-              <video
-                ref={videoRef}
+              <CustomVideoPlayer
                 src={currentSlideItem.url}
-                controls
                 autoPlay
                 onEnded={handleVideoPlayEnd}
-                className="max-w-full max-h-[80vh] rounded-lg shadow-2xl"
+                filename={currentSlideItem.filename}
+                className="max-w-full max-h-[80vh] shadow-2xl"
               />
             )}
           </div>

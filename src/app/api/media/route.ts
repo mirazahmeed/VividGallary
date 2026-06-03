@@ -190,12 +190,17 @@ export async function PUT(req: Request) {
           return NextResponse.json({ error: "Album not found or unauthorized" }, { status: 404 });
         }
 
-        // Add each media item to the album (ignore duplicate constraints using createMany ignore if supported, or loop)
+        // Add each media item to the album and sync visibility
+        const targetMediaVisibility = album.visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE";
         await Promise.all(
           ids.map(async (mediaId) => {
             try {
               await prisma.mediaAlbum.create({
                 data: { mediaId, albumId },
+              });
+              await prisma.media.update({
+                where: { id: mediaId },
+                data: { visibility: targetMediaVisibility },
               });
             } catch {
               // Ignore duplicates
@@ -204,6 +209,15 @@ export async function PUT(req: Request) {
         );
         
         details = `Added ${ids.length} items to Album "${album.name}"`;
+        break;
+
+      case "MAKE_PUBLIC":
+        updateData = { visibility: "PUBLIC" };
+        details = `Made ${ids.length} items public`;
+        break;
+      case "MAKE_PRIVATE":
+        updateData = { visibility: "PRIVATE" };
+        details = `Made ${ids.length} items private`;
         break;
 
       default:
