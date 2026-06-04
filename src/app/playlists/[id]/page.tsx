@@ -185,6 +185,14 @@ export default function PlaylistDetailPage() {
     }
   };
 
+  const handleSelectAllPool = () => {
+    if (selectedPoolIds.length === galleryPool.length) {
+      setSelectedPoolIds([]);
+    } else {
+      setSelectedPoolIds(galleryPool.map((item) => item.id));
+    }
+  };
+
   // Submit batch add media
   const handleBatchAdd = async () => {
     if (!playlist || selectedPoolIds.length === 0) return;
@@ -379,9 +387,20 @@ export default function PlaylistDetailPage() {
                   {/* Thumbnail */}
                   <div className="w-14 h-14 rounded-xl border border-border bg-secondary overflow-hidden shrink-0">
                     {item.media.type === "IMAGE" ? (
-                      <img src={item.media.url} className="w-full h-full object-cover" />
+                      <img
+                        src={item.media.url}
+                        className="w-full h-full object-cover"
+                        draggable={false}
+                        onContextMenu={(e) => e.preventDefault()}
+                      />
                     ) : (
-                      <video src={item.media.url} className="w-full h-full object-cover" muted />
+                      <video
+                        src={item.media.url}
+                        className="w-full h-full object-cover"
+                        muted
+                        draggable={false}
+                        onContextMenu={(e) => e.preventDefault()}
+                      />
                     )}
                   </div>
 
@@ -466,9 +485,20 @@ export default function PlaylistDetailPage() {
                         }`}
                       >
                         {item.type === "IMAGE" ? (
-                          <img src={item.url} className="w-full h-full object-cover" />
+                          <img
+                            src={item.url}
+                            className="w-full h-full object-cover"
+                            draggable={false}
+                            onContextMenu={(e) => e.preventDefault()}
+                          />
                         ) : (
-                          <video src={item.url} className="w-full h-full object-cover" muted />
+                          <video
+                            src={item.url}
+                            className="w-full h-full object-cover"
+                            muted
+                            draggable={false}
+                            onContextMenu={(e) => e.preventDefault()}
+                          />
                         )}
 
                         <div className="absolute top-2 left-2 p-1 rounded-md bg-black/40 backdrop-blur-md border border-white/10 text-white">
@@ -487,9 +517,19 @@ export default function PlaylistDetailPage() {
 
             {/* Modal actions */}
             <div className="pt-4 border-t border-border/60 flex items-center justify-between shrink-0">
-              <span className="text-[10px] font-bold text-muted-foreground">
-                Selected: <span className="text-primary">{selectedPoolIds.length} items</span>
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-bold text-muted-foreground">
+                  Selected: <span className="text-primary">{selectedPoolIds.length} items</span>
+                </span>
+                {galleryPool.length > 0 && (
+                  <button
+                    onClick={handleSelectAllPool}
+                    className="text-[10px] font-extrabold text-primary hover:text-primary/80 transition-colors cursor-pointer uppercase"
+                  >
+                    {selectedPoolIds.length === galleryPool.length ? "Deselect All" : "Select All"}
+                  </button>
+                )}
+              </div>
 
               <div className="flex gap-2 text-xs">
                 <button
@@ -586,6 +626,8 @@ export default function PlaylistDetailPage() {
                   src={currentSlideItem.url}
                   alt={currentSlideItem.filename}
                   className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl transition-all duration-500 ease-out"
+                  draggable={false}
+                  onContextMenu={(e) => e.preventDefault()}
                 />
               </div>
             ) : (

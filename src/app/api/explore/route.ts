@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { secureMediaUrls } from "@/lib/mediaUrl";
 
 // GET — Fetch all PUBLIC media from all users (excluding the current user)
 export async function GET(req: Request) {
@@ -101,7 +102,8 @@ export async function GET(req: Request) {
       },
     }));
 
-    return NextResponse.json({ success: true, media: enrichedMedia });
+    const securedMedia = secureMediaUrls(enrichedMedia, session.userId);
+    return NextResponse.json({ success: true, media: securedMedia });
   } catch (error) {
     console.error("Explore feed error:", error);
     return NextResponse.json({ error: "Failed to fetch explore feed" }, { status: 500 });

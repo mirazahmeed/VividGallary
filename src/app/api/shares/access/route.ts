@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { verifyPassword } from "@/lib/crypto";
+import { secureMediaItem } from "@/lib/mediaUrl";
 
 export async function POST(req: Request) {
   try {
@@ -75,7 +76,10 @@ export async function POST(req: Request) {
       passwordHash: undefined,
     };
 
-    return NextResponse.json({ success: true, share: sanitizedShare });
+    // Secure all media URLs with signed stream tokens
+    const securedShare = secureMediaItem(sanitizedShare, "share-guest");
+
+    return NextResponse.json({ success: true, share: securedShare });
   } catch (error) {
     console.error("Share access error:", error);
     return NextResponse.json({ error: "Access check failed" }, { status: 500 });

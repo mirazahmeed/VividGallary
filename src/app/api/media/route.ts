@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { storage } from "@/lib/storage";
+import { secureMediaUrls } from "@/lib/mediaUrl";
 
 export async function GET(req: Request) {
   try {
@@ -114,7 +115,8 @@ export async function GET(req: Request) {
       },
     });
 
-    return NextResponse.json({ success: true, media: mediaItems });
+    const securedMedia = secureMediaUrls(mediaItems, session.userId);
+    return NextResponse.json({ success: true, media: securedMedia });
   } catch (error) {
     console.error("Gallery fetch error:", error);
     return NextResponse.json(

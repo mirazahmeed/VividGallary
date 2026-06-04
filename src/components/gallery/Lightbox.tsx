@@ -476,13 +476,15 @@ export default function Lightbox({ media, onClose, onPrev, onNext, onUpdate }: L
           >
             <Info size={16} />
           </button>
-          <button
-            onClick={handleDownload}
-            className="p-2 sm:p-2.5 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-white cursor-pointer transition-all flex items-center justify-center"
-            title="Download original"
-          >
-            <Download size={16} />
-          </button>
+          {user && (!media.user || media.user.id === user.id) && (
+            <button
+              onClick={handleDownload}
+              className="p-2 sm:p-2.5 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-white cursor-pointer transition-all flex items-center justify-center"
+              title="Download original"
+            >
+              <Download size={16} />
+            </button>
+          )}
           <button
             onClick={onClose}
             className="p-2 sm:p-2.5 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-white cursor-pointer transition-all"
@@ -534,6 +536,7 @@ export default function Lightbox({ media, onClose, onPrev, onNext, onUpdate }: L
               style={{ transform: `scale(${zoomScale})` }}
               onDoubleClick={() => setZoomScale((prev) => (prev === 1 ? 2.2 : 1))}
               draggable={false}
+              onContextMenu={(e) => e.preventDefault()}
             />
           ) : (
             <CustomVideoPlayer
@@ -541,6 +544,7 @@ export default function Lightbox({ media, onClose, onPrev, onNext, onUpdate }: L
               autoPlay
               filename={media.filename}
               className="max-w-[95vw] sm:max-w-[85vw] max-h-[70vh] sm:max-h-[85vh] shadow-2xl"
+              downloadAllowed={false}
             />
           )}
         </div>

@@ -285,7 +285,13 @@ export default function ShareDetailPage() {
         {/* Media Frame */}
         <div className="flex-1 flex items-center justify-center p-4">
           {media.type === "IMAGE" ? (
-            <img src={media.url} alt={media.filename} className="max-w-[85vw] max-h-[75vh] object-contain rounded-lg shadow-2xl" />
+            <img
+              src={media.url}
+              alt={media.filename}
+              className="max-w-[85vw] max-h-[75vh] object-contain rounded-lg shadow-2xl"
+              draggable={false}
+              onContextMenu={(e) => e.preventDefault()}
+            />
           ) : (
             <CustomVideoPlayer
               src={media.url}
@@ -335,10 +341,23 @@ export default function ShareDetailPage() {
                 className={`group relative overflow-hidden rounded-2xl border border-border/60 bg-secondary/20 shadow-sm transition-all duration-300 hover:scale-[1.01] ${heightClass}`}
               >
                 {item.type === "IMAGE" ? (
-                  <img src={item.url} alt={item.filename} className="w-full h-full object-cover" loading="lazy" />
+                  <img
+                    src={item.url}
+                    alt={item.filename}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    draggable={false}
+                    onContextMenu={(e) => e.preventDefault()}
+                  />
                 ) : (
                   <div className="w-full h-full relative">
-                    <video src={item.url} className="w-full h-full object-cover" muted />
+                    <video
+                      src={item.url}
+                      className="w-full h-full object-cover"
+                      muted
+                      draggable={false}
+                      onContextMenu={(e) => e.preventDefault()}
+                    />
                     <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
                       <VideoIcon size={24} className="text-white" />
                     </div>
@@ -432,7 +451,13 @@ export default function ShareDetailPage() {
         {/* Slide frame */}
         <div className="flex-grow flex items-center justify-center p-8 relative">
           {activeSlide.type === "IMAGE" ? (
-            <img src={activeSlide.url} alt={activeSlide.filename} className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl" />
+            <img
+              src={activeSlide.url}
+              alt={activeSlide.filename}
+              className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl"
+              draggable={false}
+              onContextMenu={(e) => e.preventDefault()}
+            />
           ) : (
             <CustomVideoPlayer
               src={activeSlide.url}

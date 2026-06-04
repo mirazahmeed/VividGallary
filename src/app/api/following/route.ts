@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { secureMediaUrls } from "@/lib/mediaUrl";
 
 // GET — Fetch PUBLIC media only from users the current user follows
 export async function GET(req: Request) {
@@ -106,7 +107,8 @@ export async function GET(req: Request) {
       },
     }));
 
-    return NextResponse.json({ success: true, media: enrichedMedia });
+    const securedMedia = secureMediaUrls(enrichedMedia, session.userId);
+    return NextResponse.json({ success: true, media: securedMedia });
   } catch (error) {
     console.error("Following feed error:", error);
     return NextResponse.json({ error: "Failed to fetch following feed" }, { status: 500 });

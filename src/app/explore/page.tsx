@@ -181,10 +181,18 @@ export default function ExplorePage() {
                       alt={item.filename}
                       loading="lazy"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      draggable={false}
+                      onContextMenu={(e) => e.preventDefault()}
                     />
                   ) : (
                     <div className="w-full h-full relative group-hover:scale-105 transition-transform duration-500">
-                      <video src={item.url} className="w-full h-full object-cover pointer-events-none" muted />
+                      <video
+                        src={item.url}
+                        className="w-full h-full object-cover pointer-events-none"
+                        muted
+                        draggable={false}
+                        onContextMenu={(e) => e.preventDefault()}
+                      />
                       <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
                         <div className="w-10 h-10 rounded-full bg-black/45 backdrop-blur-md flex items-center justify-center text-white border border-white/10 group-hover:scale-110 transition-transform">
                           <VideoIcon size={16} />

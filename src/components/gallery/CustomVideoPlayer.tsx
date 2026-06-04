@@ -267,6 +267,7 @@ export default function CustomVideoPlayer({
       tabIndex={0}
       className={`relative overflow-hidden rounded-2xl bg-black border border-white/5 flex items-center justify-center group focus:outline-none select-none max-w-full ${className}`}
       style={{ aspectRatio: "16/9" }}
+      onContextMenu={(e) => e.preventDefault()}
     >
       {/* Video element — uses direct URL, no blob fetching */}
       <video

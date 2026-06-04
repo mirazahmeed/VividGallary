@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/crypto";
+import { secureMediaItem } from "@/lib/mediaUrl";
 
 export async function GET(
   req: Request,
@@ -50,6 +51,11 @@ export async function GET(
           },
         },
         media: {
+          where: {
+            media: {
+              inTrash: false,
+            },
+          },
           include: {
             media: {
               include: {
@@ -113,7 +119,8 @@ export async function GET(
       coverMedia: resolvedCoverMedia,
     };
 
-    return NextResponse.json({ success: true, album: resolvedAlbum });
+    const securedAlbum = secureMediaItem(resolvedAlbum, session.userId);
+    return NextResponse.json({ success: true, album: securedAlbum });
   } catch (error) {
     console.error("Album detail error:", error);
     return NextResponse.json(

@@ -8,11 +8,13 @@ export interface StorageProvider {
 }
 
 // Local Filesystem Storage fallback
+// Files are stored OUTSIDE public/ to prevent direct static access.
+// All access goes through the secure /api/media/stream/[token] endpoint.
 class LocalStorageProvider implements StorageProvider {
   private uploadDir: string;
 
   constructor() {
-    this.uploadDir = path.join(process.cwd(), "public", "uploads");
+    this.uploadDir = path.join(process.cwd(), "storage", "uploads");
     if (!fs.existsSync(this.uploadDir)) {
       fs.mkdirSync(this.uploadDir, { recursive: true });
     }
@@ -153,4 +155,18 @@ class S3StorageProvider implements StorageProvider {
 export const storage = process.env.AWS_ACCESS_KEY_ID 
   ? new S3StorageProvider() 
   : new LocalStorageProvider();
+
+/**
+ * Resolves a stored media URL (e.g. /uploads/filename.jpg) to an absolute
+ * file path on disk. Used by the secure stream endpoint.
+ */
+export function getFilePath(fileUrl: string): string {
+  if (!fileUrl.startsWith("/uploads/")) {
+    throw new Error("Invalid local file URL");
+  }
+  const filename = fileUrl.replace("/uploads/", "");
+  return path.join(process.cwd(), "storage", "uploads", filename);
+}
+
 export default storage;
+

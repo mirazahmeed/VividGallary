@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useApp } from "@/context/AppContext";
@@ -24,7 +24,9 @@ import {
   Settings,
   Share2,
   Copy,
-  X
+  X,
+  CheckSquare,
+  Square
 } from "lucide-react";
 
 interface Collaborator {
@@ -57,6 +59,20 @@ export default function AlbumDetailPage() {
   const albumId = params.id as string;
   const { user, addNotification } = useApp();
   const router = useRouter();
+
+  // Swipe selection refs
+  const isSwipeSelectingRef = useRef(false);
+  const swipeModeRef = useRef<"select" | "deselect">("select");
+
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      isSwipeSelectingRef.current = false;
+    };
+    window.addEventListener("mouseup", handleGlobalMouseUp);
+    return () => {
+      window.removeEventListener("mouseup", handleGlobalMouseUp);
+    };
+  }, []);
 
   // Page States
   const [album, setAlbum] = useState<AlbumDetail | null>(null);
@@ -346,6 +362,14 @@ export default function AlbumDetailPage() {
     }
   };
 
+  const handleSelectAllPool = () => {
+    if (selectedPoolIds.length === globalMediaPool.length) {
+      setSelectedPoolIds([]);
+    } else {
+      setSelectedPoolIds(globalMediaPool.map((item) => item.id));
+    }
+  };
+
   // Submit batch add media linking
   const handleBatchAddMedia = async () => {
     if (selectedPoolIds.length === 0) return;
@@ -531,6 +555,14 @@ export default function AlbumDetailPage() {
 
   const albumMediaItems = album.media.map((m) => m.media);
 
+  const handleSelectAll = () => {
+    if (selectedMediaIds.length === albumMediaItems.length) {
+      setSelectedMediaIds([]);
+    } else {
+      setSelectedMediaIds(albumMediaItems.map((item) => item.id));
+    }
+  };
+
   // Lightbox helpers
   const activeLightboxItem = activeLightboxIndex !== null ? albumMediaItems[activeLightboxIndex] : null;
 
@@ -599,7 +631,10 @@ export default function AlbumDetailPage() {
           )}
 
           <button
-            onClick={() => setIsSelectMode(!isSelectMode)}
+            onClick={() => {
+              setIsSelectMode(!isSelectMode);
+              setSelectedMediaIds([]);
+            }}
             className={`text-xs font-bold px-3 py-2.5 sm:px-4 sm:py-2.5 rounded-xl border transition-all cursor-pointer shadow-sm ${
               isSelectMode
                 ? "bg-primary/10 border-primary/40 text-primary animate-pulse"
@@ -619,6 +654,23 @@ export default function AlbumDetailPage() {
               </>
             )}
           </button>
+
+          {isSelectMode && albumMediaItems.length > 0 && (
+            <button
+              onClick={handleSelectAll}
+              className="flex items-center gap-2 border border-border/60 text-xs font-bold px-3 py-2.5 sm:px-4 sm:py-2.5 rounded-xl text-muted-foreground hover:text-foreground transition-all cursor-pointer bg-muted/20"
+            >
+              {selectedMediaIds.length === albumMediaItems.length ? (
+                <>
+                  <Square size={14} /> Deselect All
+                </>
+              ) : (
+                <>
+                  <CheckSquare size={14} /> Select All
+                </>
+              )}
+            </button>
+          )}
 
           <button
             onClick={() => setShowCreateSubfolderModal(true)}
@@ -716,14 +768,32 @@ export default function AlbumDetailPage() {
               <div
                 key={item.id}
                 onClick={() => {
-                  if (isSelectMode) {
-                    setSelectedMediaIds((prev) =>
-                      prev.includes(item.id)
-                        ? prev.filter((id) => id !== item.id)
-                        : [...prev, item.id]
-                    );
-                  } else {
+                  if (!isSelectMode) {
                     setActiveLightboxIndex(index);
+                  }
+                }}
+                onMouseDown={(e) => {
+                  if (isSelectMode) {
+                    e.preventDefault();
+                    isSwipeSelectingRef.current = true;
+                    const isSelected = selectedMediaIds.includes(item.id);
+                    if (isSelected) {
+                      swipeModeRef.current = "deselect";
+                      setSelectedMediaIds((prev) => prev.filter((id) => id !== item.id));
+                    } else {
+                      swipeModeRef.current = "select";
+                      setSelectedMediaIds((prev) => [...prev, item.id]);
+                    }
+                  }
+                }}
+                onMouseEnter={() => {
+                  if (isSelectMode && isSwipeSelectingRef.current) {
+                    const isSelected = selectedMediaIds.includes(item.id);
+                    if (swipeModeRef.current === "select" && !isSelected) {
+                      setSelectedMediaIds((prev) => [...prev, item.id]);
+                    } else if (swipeModeRef.current === "deselect" && isSelected) {
+                      setSelectedMediaIds((prev) => prev.filter((id) => id !== item.id));
+                    }
                   }
                 }}
                 className={`group relative overflow-hidden rounded-2xl cursor-pointer shadow-md transition-all duration-300 border bg-secondary/20 hover:scale-[1.015] hover:shadow-xl ${heightClass} ${
@@ -737,10 +807,18 @@ export default function AlbumDetailPage() {
                     alt={item.filename}
                     loading="lazy"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    draggable={false}
+                    onContextMenu={(e) => e.preventDefault()}
                   />
                 ) : (
                   <div className="w-full h-full relative group-hover:scale-105 transition-transform duration-500">
-                    <video src={item.url} className="w-full h-full object-cover pointer-events-none" muted />
+                    <video
+                      src={item.url}
+                      className="w-full h-full object-cover pointer-events-none"
+                      muted
+                      draggable={false}
+                      onContextMenu={(e) => e.preventDefault()}
+                    />
                     <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
                       <div className="w-10 h-10 rounded-full bg-black/45 backdrop-blur-md flex items-center justify-center text-white border border-white/10 group-hover:scale-110 transition-transform">
                         <VideoIcon size={16} />
@@ -885,9 +963,19 @@ export default function AlbumDetailPage() {
 
             {/* Modal actions */}
             <div className="pt-4 border-t border-border/60 flex items-center justify-between shrink-0">
-              <span className="text-[10px] font-bold text-muted-foreground">
-                Selected: <span className="text-primary">{selectedPoolIds.length} items</span>
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-bold text-muted-foreground">
+                  Selected: <span className="text-primary">{selectedPoolIds.length} items</span>
+                </span>
+                {globalMediaPool.length > 0 && (
+                  <button
+                    onClick={handleSelectAllPool}
+                    className="text-[10px] font-extrabold text-primary hover:text-primary/80 transition-colors cursor-pointer uppercase"
+                  >
+                    {selectedPoolIds.length === globalMediaPool.length ? "Deselect All" : "Select All"}
+                  </button>
+                )}
+              </div>
 
               <div className="flex gap-2 text-xs">
                 <button

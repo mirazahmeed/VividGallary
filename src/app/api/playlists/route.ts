@@ -12,13 +12,12 @@ export async function GET() {
     const playlists = await prisma.playlist.findMany({
       where: { userId: session.userId },
       include: {
-        _count: {
-          select: {
-            items: true,
-          },
-        },
         items: {
-          take: 1,
+          where: {
+            media: {
+              inTrash: false,
+            },
+          },
           include: {
             media: true,
           },
@@ -29,7 +28,19 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json({ success: true, playlists });
+    const playlistsWithCount = playlists.map((pl) => {
+      const itemsCount = pl.items.length;
+      const firstItem = pl.items.slice(0, 1);
+      return {
+        ...pl,
+        items: firstItem,
+        _count: {
+          items: itemsCount,
+        },
+      };
+    });
+
+    return NextResponse.json({ success: true, playlists: playlistsWithCount });
   } catch (error) {
     console.error("Playlists fetch error:", error);
     return NextResponse.json(

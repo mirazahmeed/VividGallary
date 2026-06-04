@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import Lightbox, { MediaItem } from "@/components/gallery/Lightbox";
@@ -17,12 +17,27 @@ import {
   SlidersHorizontal,
   ChevronDown,
   Globe,
-  Lock
+  Lock,
+  RotateCcw
 } from "lucide-react";
 
 export default function GalleryPage() {
   const { user, searchQuery, addNotification } = useApp();
   const searchParams = useSearchParams();
+ 
+  // Swipe selection refs
+  const isSwipeSelectingRef = useRef(false);
+  const swipeModeRef = useRef<"select" | "deselect">("select");
+
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      isSwipeSelectingRef.current = false;
+    };
+    window.addEventListener("mouseup", handleGlobalMouseUp);
+    return () => {
+      window.removeEventListener("mouseup", handleGlobalMouseUp);
+    };
+  }, []);
 
   // Primary states
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -225,6 +240,24 @@ export default function GalleryPage() {
           >
             <SlidersHorizontal size={14} /> {isSelectMode ? "Selection: Active" : "Select Items"}
           </button>
+
+          {/* Select All Toggle */}
+          {isSelectMode && mediaItems.length > 0 && (
+            <button
+              onClick={handleSelectAll}
+              className="flex items-center gap-2 border border-border/60 text-xs font-bold px-3.5 py-2.5 sm:px-4.5 sm:py-2.5 rounded-xl text-muted-foreground hover:text-foreground transition-all cursor-pointer bg-muted/20"
+            >
+              {selectedIds.length === mediaItems.length ? (
+                <>
+                  <Square size={14} /> Deselect All
+                </>
+              ) : (
+                <>
+                  <CheckSquare size={14} /> Select All
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -255,14 +288,32 @@ export default function GalleryPage() {
               <div
                 key={item.id}
                 onClick={() => {
-                  if (isSelectMode) {
-                    setSelectedIds((prev) =>
-                      prev.includes(item.id)
-                        ? prev.filter((id) => id !== item.id)
-                        : [...prev, item.id]
-                    );
-                  } else {
+                  if (!isSelectMode) {
                     setActiveLightboxIndex(index);
+                  }
+                }}
+                onMouseDown={(e) => {
+                  if (isSelectMode) {
+                    e.preventDefault();
+                    isSwipeSelectingRef.current = true;
+                    const isSelected = selectedIds.includes(item.id);
+                    if (isSelected) {
+                      swipeModeRef.current = "deselect";
+                      setSelectedIds((prev) => prev.filter((id) => id !== item.id));
+                    } else {
+                      swipeModeRef.current = "select";
+                      setSelectedIds((prev) => [...prev, item.id]);
+                    }
+                  }
+                }}
+                onMouseEnter={() => {
+                  if (isSelectMode && isSwipeSelectingRef.current) {
+                    const isSelected = selectedIds.includes(item.id);
+                    if (swipeModeRef.current === "select" && !isSelected) {
+                      setSelectedIds((prev) => [...prev, item.id]);
+                    } else if (swipeModeRef.current === "deselect" && isSelected) {
+                      setSelectedIds((prev) => prev.filter((id) => id !== item.id));
+                    }
                   }
                 }}
                 className={`group relative overflow-hidden rounded-2xl cursor-pointer shadow-md transition-all duration-300 border bg-secondary/20 hover:scale-[1.015] hover:shadow-xl ${heightClass} ${
@@ -276,10 +327,18 @@ export default function GalleryPage() {
                     alt={item.filename}
                     loading="lazy"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    draggable={false}
+                    onContextMenu={(e) => e.preventDefault()}
                   />
                 ) : (
                   <div className="w-full h-full relative group-hover:scale-105 transition-transform duration-500">
-                    <video src={item.url} className="w-full h-full object-cover pointer-events-none" muted />
+                    <video
+                      src={item.url}
+                      className="w-full h-full object-cover pointer-events-none"
+                      muted
+                      draggable={false}
+                      onContextMenu={(e) => e.preventDefault()}
+                    />
                     <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
                       <div className="w-10 h-10 rounded-full bg-black/45 backdrop-blur-md flex items-center justify-center text-white border border-white/10 group-hover:scale-110 transition-transform">
                         <VideoIcon size={16} />
@@ -419,6 +478,16 @@ export default function GalleryPage() {
                   </div>
                 )}
               </div>
+            )}
+
+            {/* Batch Restore */}
+            {viewState === "TRASH" && (
+              <button
+                onClick={() => handleBulkAction("RESTORE")}
+                className="flex items-center gap-1.5 bg-primary/10 border border-primary/20 hover:bg-primary/25 text-xs font-bold text-primary px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-sm active:scale-98"
+              >
+                <RotateCcw size={14} /> Restore Files
+              </button>
             )}
 
             {/* Batch Trash / Permanent Delete */}

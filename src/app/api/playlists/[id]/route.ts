@@ -18,6 +18,11 @@ export async function GET(
       where: { id },
       include: {
         items: {
+          where: {
+            media: {
+              inTrash: false,
+            },
+          },
           include: {
             media: true,
           },

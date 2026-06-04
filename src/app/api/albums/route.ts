@@ -27,7 +27,11 @@ export async function GET() {
       include: {
         coverMedia: true,
         media: {
-          take: 1,
+          where: {
+            media: {
+              inTrash: false,
+            },
+          },
           orderBy: {
             addedAt: "asc",
           },
@@ -37,11 +41,6 @@ export async function GET() {
                 url: true,
               },
             },
-          },
-        },
-        _count: {
-          select: {
-            media: true,
           },
         },
         user: {
@@ -65,11 +64,15 @@ export async function GET() {
         } as any;
       }
       
+      const mediaCount = album.media.length;
       // Remove the extra media field to keep payload clean
       const { media, ...rest } = album;
       return {
         ...rest,
         coverMedia: resolvedCoverMedia,
+        _count: {
+          media: mediaCount,
+        },
       };
     });
 
