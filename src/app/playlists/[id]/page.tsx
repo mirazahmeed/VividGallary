@@ -20,7 +20,8 @@ import {
   X,
   Volume2,
   VolumeX,
-  Maximize2
+  Maximize2,
+  GripVertical
 } from "lucide-react";
 
 interface PlaylistItem {
@@ -63,6 +64,47 @@ export default function PlaylistDetailPage() {
   const [slideshowSpeed, setSlideshowSpeed] = useState(3);
   const slideTimerRef = useRef<NodeJS.Timeout | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Drag and drop sorting states
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    setDragOverIndex(index);
+  };
+
+  const handleDrop = async (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index || !playlist) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const newItems = [...playlist.items];
+    const draggedItem = newItems[draggedIndex];
+    newItems.splice(draggedIndex, 1);
+    newItems.splice(index, 0, draggedItem);
+
+    const updatedItems = newItems.map((item, idx) => ({ ...item, order: idx }));
+    setPlaylist({ ...playlist, items: updatedItems });
+
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+
+    await saveNewItemsOrder(updatedItems.map((item) => item.media.id));
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
 
   useEffect(() => {
     if (user && playlistId) {
@@ -373,73 +415,93 @@ export default function PlaylistDetailPage() {
           </span>
 
           <div className="space-y-2">
-            {playlist.items.map((item, index) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between p-4 glass border border-border/60 hover:border-primary/30 rounded-2xl transition-all shadow-sm group bg-card/10"
-              >
-                <div className="flex items-center gap-4 truncate">
-                  {/* Visual timeline order counter */}
-                  <span className="text-xs font-black text-muted-foreground w-6 text-center shrink-0">
-                    {index + 1}
-                  </span>
+            {playlist.items.map((item, index) => {
+              const isDragged = draggedIndex === index;
+              const isOver = dragOverIndex === index;
 
-                  {/* Thumbnail */}
-                  <div className="w-14 h-14 rounded-xl border border-border bg-secondary overflow-hidden shrink-0">
-                    {item.media.type === "IMAGE" ? (
-                      <img
-                        src={item.media.url}
-                        className="w-full h-full object-cover"
-                        draggable={false}
-                        onContextMenu={(e) => e.preventDefault()}
-                      />
-                    ) : (
-                      <video
-                        src={item.media.url}
-                        className="w-full h-full object-cover"
-                        muted
-                        draggable={false}
-                        onContextMenu={(e) => e.preventDefault()}
-                      />
-                    )}
-                  </div>
+              return (
+                <div
+                  key={item.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragOver={(e) => handleDragOver(e, index)}
+                  onDrop={(e) => handleDrop(e, index)}
+                  onDragEnd={handleDragEnd}
+                  className={`flex items-center justify-between p-4 glass border rounded-2xl transition-all shadow-sm group bg-card/10 ${
+                    isDragged ? "opacity-40 border-primary/50" : "border-border/60"
+                  } ${
+                    isOver && !isDragged ? "border-primary bg-primary/5 scale-[1.01]" : "hover:border-primary/30"
+                  }`}
+                >
+                  <div className="flex items-center gap-4 truncate">
+                    {/* Drag Handle */}
+                    <div className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors shrink-0 p-1">
+                      <GripVertical size={16} />
+                    </div>
 
-                  <div className="truncate pr-4">
-                    <p className="text-xs font-bold text-foreground truncate max-w-[280px]">{item.media.filename}</p>
-                    <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wide">
-                      {item.media.type} • {(item.media.size / 1024 / 1024).toFixed(2)} MB
+                    {/* Visual timeline order counter */}
+                    <span className="text-xs font-black text-muted-foreground w-6 text-center shrink-0">
+                      {index + 1}
                     </span>
+
+                    {/* Thumbnail */}
+                    <div className="w-14 h-14 rounded-xl border border-border bg-secondary overflow-hidden shrink-0">
+                      {item.media.type === "IMAGE" ? (
+                        <img
+                          src={item.media.url}
+                          className="w-full h-full object-cover"
+                          draggable={false}
+                          onContextMenu={(e) => e.preventDefault()}
+                        />
+                      ) : (
+                        <video
+                          src={`${item.media.url}#t=0.1`}
+                          className="w-full h-full object-cover"
+                          muted
+                          preload="metadata"
+                          draggable={false}
+                          onContextMenu={(e) => e.preventDefault()}
+                        />
+                      )}
+                    </div>
+
+                    <div className="truncate pr-4">
+                      <p className="text-xs font-bold text-foreground truncate max-w-[280px]">{item.media.filename}</p>
+                      <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wide">
+                        {item.media.type} • {(item.media.size / 1024 / 1024).toFixed(2)} MB
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Operations (Re-ordering Up/Down and Delete links) */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => moveItem(index, "up")}
+                      disabled={index === 0 || savingSort}
+                      className="p-2 rounded-lg bg-secondary/40 border border-border/60 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30"
+                      title="Move up"
+                    >
+                      <ArrowUp size={13} />
+                    </button>
+                    <button
+                      onClick={() => moveItem(index, "down")}
+                      disabled={index === playlist.items.length - 1 || savingSort}
+                      className="p-2 rounded-lg bg-secondary/40 border border-border/60 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30"
+                      title="Move down"
+                    >
+                      <ArrowDown size={13} />
+                    </button>
+                    <button
+                      onClick={() => handleRemoveItem(item.media.id)}
+                      className="p-2 rounded-lg bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 text-rose-500 cursor-pointer ml-3"
+                      title="Remove item"
+                    >
+                      <Trash size={13} />
+                    </button>
                   </div>
                 </div>
-
-                {/* Operations (Re-ordering Up/Down and Delete links) */}
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    onClick={() => moveItem(index, "up")}
-                    disabled={index === 0 || savingSort}
-                    className="p-2 rounded-lg bg-secondary/40 border border-border/60 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30"
-                    title="Move up"
-                  >
-                    <ArrowUp size={13} />
-                  </button>
-                  <button
-                    onClick={() => moveItem(index, "down")}
-                    disabled={index === playlist.items.length - 1 || savingSort}
-                    className="p-2 rounded-lg bg-secondary/40 border border-border/60 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30"
-                    title="Move down"
-                  >
-                    <ArrowDown size={13} />
-                  </button>
-                  <button
-                    onClick={() => handleRemoveItem(item.media.id)}
-                    className="p-2 rounded-lg bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 text-rose-500 cursor-pointer ml-3"
-                    title="Remove item"
-                  >
-                    <Trash size={13} />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -493,9 +555,10 @@ export default function PlaylistDetailPage() {
                           />
                         ) : (
                           <video
-                            src={item.url}
+                            src={`${item.url}#t=0.1`}
                             className="w-full h-full object-cover"
                             muted
+                            preload="metadata"
                             draggable={false}
                             onContextMenu={(e) => e.preventDefault()}
                           />
@@ -637,6 +700,8 @@ export default function PlaylistDetailPage() {
                 onEnded={handleVideoPlayEnd}
                 filename={currentSlideItem.filename}
                 className="max-w-full max-h-[80vh] shadow-2xl"
+                onNext={handleNextSlide}
+                onPrev={handlePrevSlide}
               />
             )}
           </div>

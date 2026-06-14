@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { storage } from "@/lib/storage";
+import { getOrCreateDefaultAlbum } from "@/lib/defaultAlbum";
 
 // POST: Add media to album
 export async function POST(
@@ -59,6 +61,17 @@ export async function POST(
       }
     }
 
+    // If adding to a non-default album, remove from default "Random Media" album
+    if (!album.isDefault && addedItems.length > 0) {
+      const defaultAlbum = await getOrCreateDefaultAlbum(session.userId);
+      await prisma.mediaAlbum.deleteMany({
+        where: {
+          albumId: defaultAlbum.id,
+          mediaId: { in: addedItems.map(item => item.mediaId) },
+        },
+      });
+    }
+
     await prisma.activityLog.create({
       data: {
         userId: session.userId,
@@ -77,7 +90,7 @@ export async function POST(
   }
 }
 
-// DELETE: Remove media from album
+// DELETE: Remove media from album (permanently deletes the media from gallery/storage)
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -113,23 +126,70 @@ export async function DELETE(
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    // Perform deletions
-    const deleteCount = await prisma.mediaAlbum.deleteMany({
+    // Fetch files to delete from storage and recalculate space
+    // Only fetch media that are actually in this album
+    const files = await prisma.media.findMany({
       where: {
-        albumId,
-        mediaId: { in: mediaIds },
+        id: { in: mediaIds },
+        userId: session.userId,
+        albums: {
+          some: {
+            albumId: albumId
+          }
+        }
       },
     });
+
+    if (files.length === 0) {
+      return NextResponse.json({ error: "No media found to delete" }, { status: 404 });
+    }
+
+    let totalDeletedSize = 0;
+
+    // Delete files from storage
+    await Promise.all(
+      files.map(async (file: any) => {
+        try {
+          await storage.delete(file.url);
+          if (file.thumbnailUrl && file.thumbnailUrl !== file.url) {
+            await storage.delete(file.thumbnailUrl);
+          }
+        } catch (storageErr) {
+          console.error(`Failed to delete storage file for media ${file.id}:`, storageErr);
+        }
+        totalDeletedSize += file.size;
+      })
+    );
+
+    // Delete from DB (cascade cleans up MediaAlbum and other relations)
+    await prisma.media.deleteMany({
+      where: {
+        id: { in: files.map((f: any) => f.id) },
+      },
+    });
+
+    // Update user's storage limits
+    const updatedUser = await prisma.user.findUnique({
+      where: { id: session.userId },
+    });
+    
+    if (updatedUser) {
+      const newStorageUsed = Math.max(0, updatedUser.storageUsed - totalDeletedSize);
+      await prisma.user.update({
+        where: { id: session.userId },
+        data: { storageUsed: newStorageUsed },
+      });
+    }
 
     await prisma.activityLog.create({
       data: {
         userId: session.userId,
         action: "ALBUM_REMOVE_MEDIA",
-        details: `Removed ${deleteCount.count} items from Album "${album.name}"`,
+        details: `Permanently deleted ${files.length} items from Album "${album.name}"`,
       },
     });
 
-    return NextResponse.json({ success: true, count: deleteCount.count });
+    return NextResponse.json({ success: true, count: files.length });
   } catch (error) {
     console.error("Album media remove error:", error);
     return NextResponse.json(

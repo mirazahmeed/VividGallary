@@ -98,15 +98,15 @@ export async function GET(
       ".svg": "image/svg+xml",
       ".mp4": "video/mp4",
       ".webm": "video/webm",
-      ".mov": "video/quicktime",
+      ".mov": "video/mp4",
       ".mkv": "video/x-matroska",
       ".avi": "video/x-msvideo",
     };
     const contentType = mimeTypes[ext] || "application/octet-stream";
 
-    // 7. Read file and stream with protective headers
-    const fileBuffer = fs.readFileSync(filePath);
-    const fileSize = fileBuffer.length;
+    // 7. Stream file with protective headers
+    const stats = fs.statSync(filePath);
+    const fileSize = stats.size;
 
     // Handle Range requests for video seeking support
     const range = req.headers.get("range");
@@ -115,10 +115,37 @@ export async function GET(
       const parts = range.replace(/bytes=/, "").split("-");
       const start = parseInt(parts[0], 10);
       const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-      const chunkSize = end - start + 1;
-      const chunk = fileBuffer.subarray(start, end + 1);
 
-      return new NextResponse(chunk, {
+      if (start >= fileSize || end >= fileSize) {
+        return new NextResponse("Requested range not satisfiable", {
+          status: 416,
+          headers: {
+            "Content-Range": `bytes */${fileSize}`,
+          },
+        });
+      }
+
+      const chunkSize = end - start + 1;
+      const nodeStream = fs.createReadStream(filePath, { start, end });
+      const webStream = new ReadableStream({
+        start(controller) {
+          nodeStream.on("data", (chunk) => {
+            const buffer = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+            controller.enqueue(new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength));
+          });
+          nodeStream.on("end", () => {
+            controller.close();
+          });
+          nodeStream.on("error", (err) => {
+            controller.error(err);
+          });
+        },
+        cancel() {
+          nodeStream.destroy();
+        }
+      });
+
+      return new NextResponse(webStream as any, {
         status: 206,
         headers: {
           "Content-Type": contentType,
@@ -136,7 +163,26 @@ export async function GET(
       });
     }
 
-    return new NextResponse(fileBuffer, {
+    const nodeStream = fs.createReadStream(filePath);
+    const webStream = new ReadableStream({
+      start(controller) {
+        nodeStream.on("data", (chunk) => {
+          const buffer = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+          controller.enqueue(new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength));
+        });
+        nodeStream.on("end", () => {
+          controller.close();
+        });
+        nodeStream.on("error", (err) => {
+          controller.error(err);
+        });
+      },
+      cancel() {
+        nodeStream.destroy();
+      }
+    });
+
+    return new NextResponse(webStream as any, {
       status: 200,
       headers: {
         "Content-Type": contentType,

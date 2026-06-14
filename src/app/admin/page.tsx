@@ -452,7 +452,12 @@ export default function AdminPage() {
                         <img src={item.url} alt="" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full relative">
-                          <video src={item.url} className="w-full h-full object-cover pointer-events-none" muted />
+                          <video
+                            src={`${item.url}#t=0.1`}
+                            className="w-full h-full object-cover pointer-events-none"
+                            muted
+                            preload="metadata"
+                          />
                           <div className="absolute inset-0 bg-black/15 flex items-center justify-center text-white">
                             <Sliders size={16} />
                           </div>

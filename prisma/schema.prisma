@@ -50,6 +50,7 @@ model Media {
   isFavorite   Boolean       @default(false)
   isArchived   Boolean       @default(false)
   inTrash      Boolean       @default(false)
+  metadata     String?       // JSON string for EXIF or metadata
   
   userId       String
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -70,6 +71,7 @@ model Album {
   id           String        @id @default(uuid())
   name         String
   description  String?
+  isDefault    Boolean       @default(false)
   visibility   String        @default("PRIVATE") // PUBLIC, PRIVATE, PASSWORD_PROTECTED, INVITE_ONLY
   passwordHash String?
   

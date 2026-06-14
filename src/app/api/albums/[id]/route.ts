@@ -162,9 +162,21 @@ export async function PUT(
     }
 
     const updateData: any = {};
-    if (name) updateData.name = name;
-    if (description !== undefined) updateData.description = description;
-    if (coverMediaId !== undefined) updateData.coverMediaId = coverMediaId;
+    if (name) {
+      // Block renaming the default album
+      if (album.isDefault) {
+        return NextResponse.json({ error: "Cannot rename the default Random Media album" }, { status: 403 });
+      }
+      updateData.name = name;
+    }
+
+    if (description !== undefined) {
+      updateData.description = description;
+    }
+
+    if (coverMediaId !== undefined) {
+      updateData.coverMediaId = coverMediaId;
+    }
 
     if (visibility) {
       // Only owner can change visibility settings
@@ -238,8 +250,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Album not found" }, { status: 404 });
     }
 
-    if (album.userId !== session.userId) {
-      return NextResponse.json({ error: "Only the owner can delete this album" }, { status: 403 });
+    if (album.isDefault) {
+      return NextResponse.json({ error: "Cannot delete the default Random Media album" }, { status: 403 });
     }
 
     await prisma.album.delete({

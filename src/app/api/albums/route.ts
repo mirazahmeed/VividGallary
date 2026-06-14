@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/crypto";
+import { secureMediaUrls } from "@/lib/mediaUrl";
 
 export async function GET() {
   try {
@@ -39,6 +40,7 @@ export async function GET() {
             media: {
               select: {
                 url: true,
+                type: true,
               },
             },
           },
@@ -61,6 +63,7 @@ export async function GET() {
       if (!resolvedCoverMedia && album.media.length > 0) {
         resolvedCoverMedia = {
           url: album.media[0].media.url,
+          type: album.media[0].media.type,
         } as any;
       }
       
@@ -76,7 +79,8 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ success: true, albums: albumsWithCovers });
+    const securedAlbums = secureMediaUrls(albumsWithCovers, session.userId);
+    return NextResponse.json({ success: true, albums: securedAlbums });
   } catch (error) {
     console.error("Albums fetch error:", error);
     return NextResponse.json(

@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useApp } from "@/context/AppContext";
 import CustomVideoPlayer from "./CustomVideoPlayer";
+import ImageEditor from "./ImageEditor";
+import UserAvatar from "../layout/UserAvatar";
 import {
   X,
   Heart,
@@ -19,7 +21,8 @@ import {
   Send,
   Link as LinkIcon,
   ShieldCheck,
-  Loader2
+  Loader2,
+  Sparkles
 } from "lucide-react";
 
 export interface MediaItem {
@@ -36,6 +39,7 @@ export interface MediaItem {
   resolution: string | null;
   isFavorite: boolean;
   isArchived: boolean;
+  metadata: string | null;
   createdAt: string;
   tags: Array<{ tag: { name: string } }>;
   comments: Array<{
@@ -55,15 +59,52 @@ export interface MediaItem {
   };
 }
 
+function getRelatedMediaItems(items: MediaItem[], current: MediaItem, excludedIds = new Set<string>()) {
+  const currentTagNames = new Set(current.tags?.map((tag) => tag.tag.name) || []);
+
+  return items
+    .filter((item) => item.id !== current.id && !excludedIds.has(item.id))
+    .map((item) => {
+      const itemTags = item.tags?.map((tag) => tag.tag.name) || [];
+      const matchingTags = itemTags.filter((tag) => currentTagNames.has(tag));
+      let score = 0;
+
+      if (item.type === current.type) score += 6;
+      if (item.user?.id === current.user?.id) score += 3;
+      score += matchingTags.length * 8;
+      score += (item.likes?.length || 0) * 0.1;
+      score += (item.comments?.length || 0) * 0.15;
+
+      return { item, score };
+    })
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return new Date(b.item.createdAt).getTime() - new Date(a.item.createdAt).getTime();
+    })
+    .slice(0, 12)
+    .map(({ item }) => item);
+}
+
 interface LightboxProps {
   media: MediaItem | null;
+  mediaList?: MediaItem[];
+  onSelectMedia?: (media: MediaItem, index: number) => void;
   onClose: () => void;
   onPrev?: () => void;
   onNext?: () => void;
   onUpdate?: () => void;
 }
 
-export default function Lightbox({ media, onClose, onPrev, onNext, onUpdate }: LightboxProps) {
+export default function Lightbox({
+  media,
+  mediaList,
+  onSelectMedia,
+  onClose,
+  onPrev,
+  onNext,
+  onUpdate,
+}: LightboxProps) {
   const { user, addNotification } = useApp();
   const [showDetails, setShowDetails] = useState(false);
   const [commentText, setCommentText] = useState("");
@@ -78,11 +119,148 @@ export default function Lightbox({ media, onClose, onPrev, onNext, onUpdate }: L
   const [zoomScale, setZoomScale] = useState(1);
   const [isFollowingUser, setIsFollowingUser] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [universeMediaItems, setUniverseMediaItems] = useState<MediaItem[]>([]);
+  const [universeLoading, setUniverseLoading] = useState(false);
 
   // Touch swipe state
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
+
+  // Rename states
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempName, setTempName] = useState("");
+  const [isSavingName, setIsSavingName] = useState(false);
+
+  // Tag editor state
+  const [newTag, setNewTag] = useState("");
+
+  // Image editor modal visibility
+  const [showImageEditor, setShowImageEditor] = useState(false);
+
+  // Reset states when media changes
+  useEffect(() => {
+    if (media) {
+      setTempName(media.filename);
+      setIsEditingName(false);
+      setNewTag("");
+      setShowImageEditor(false);
+    }
+  }, [media]);
+
+  const activeThumbnailRef = useRef<HTMLButtonElement | null>(null);
+
+  // Scroll active thumbnail in strip into view when active media changes
+  const currentIndex = mediaList && media ? mediaList.findIndex((item) => item.id === media.id) : -1;
+
+  const relatedItems = React.useMemo(() => {
+    if (!media || !mediaList || mediaList.length <= 1) return [];
+    return getRelatedMediaItems(mediaList, media);
+  }, [media, mediaList]);
+
+  const universeRelatedItems = React.useMemo(() => {
+    if (!media || universeMediaItems.length <= 1) return [];
+    const excludedIds = new Set([media.id, ...relatedItems.map((item) => item.id)]);
+    return getRelatedMediaItems(universeMediaItems, media, excludedIds);
+  }, [media, universeMediaItems, relatedItems]);
+
+  useEffect(() => {
+    if (!media?.id || !user) return;
+
+    let cancelled = false;
+    const loadUniverseMedia = async () => {
+      setUniverseLoading(true);
+      try {
+        const res = await fetch("/api/media");
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled) setUniverseMediaItems(data.media || []);
+        }
+      } catch {
+      } finally {
+        if (!cancelled) setUniverseLoading(false);
+      }
+    };
+
+    loadUniverseMedia();
+    return () => {
+      cancelled = true;
+    };
+  }, [media?.id, user]);
+
+  useEffect(() => {
+    if (activeThumbnailRef.current) {
+      activeThumbnailRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    }
+  }, [media]);
+
+  const handleRenameSave = async () => {
+    if (!tempName.trim() || !media) return;
+    setIsSavingName(true);
+    try {
+      const res = await fetch(`/api/media/${media.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: tempName.trim() }),
+      });
+      if (res.ok) {
+        addNotification("Success", "Filename updated successfully", "success");
+        setIsEditingName(false);
+        if (onUpdate) onUpdate();
+      } else {
+        const err = await res.json();
+        throw new Error(err.error || "Rename failed");
+      }
+    } catch (err: any) {
+      addNotification("Error", err.message || "Failed to update filename", "error");
+    } finally {
+      setIsSavingName(false);
+    }
+  };
+
+  const handleAddTag = async () => {
+    if (!newTag.trim() || !media) return;
+    const clean = newTag.trim().toLowerCase();
+    const currentTags = media.tags?.map((t) => t.tag.name) || [];
+    if (currentTags.includes(clean)) {
+      setNewTag("");
+      return;
+    }
+    const updatedTags = [...currentTags, clean];
+    setNewTag("");
+    await saveTagsChange(updatedTags);
+  };
+
+  const handleRemoveTag = async (tagName: string) => {
+    if (!media) return;
+    const currentTags = media.tags?.map((t) => t.tag.name) || [];
+    const updatedTags = currentTags.filter((name) => name !== tagName);
+    await saveTagsChange(updatedTags);
+  };
+
+  const saveTagsChange = async (updatedTags: string[]) => {
+    if (!media) return;
+    try {
+      const res = await fetch(`/api/media/${media.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: updatedTags }),
+      });
+      if (res.ok) {
+        addNotification("Success", "Tags updated successfully", "success");
+        if (onUpdate) onUpdate();
+      } else {
+        const err = await res.json();
+        throw new Error(err.error || "Update tags failed");
+      }
+    } catch (err: any) {
+      addNotification("Error", err.message || "Failed to update tags", "error");
+    }
+  };
 
   useEffect(() => {
     if (media && user) {
@@ -249,29 +427,189 @@ export default function Lightbox({ media, onClose, onPrev, onNext, onUpdate }: L
     }
   };
 
-  const mockExif = {
-    camera: "Sony Alpha 7R V",
-    lens: "FE 24-70mm F2.8 GM II",
-    iso: "ISO 100",
-    aperture: "f/4.0",
-    focal: "35mm",
-    speed: "1/250s",
+  // Parse actual EXIF from database
+  const parsedMetadata = (() => {
+    try {
+      if (media.metadata) {
+        return JSON.parse(media.metadata);
+      }
+    } catch (e) {
+      console.error("Failed to parse metadata JSON:", e);
+    }
+    return null;
+  })();
+
+  const exif = {
+    camera: parsedMetadata?.camera || "N/A",
+    lens: parsedMetadata?.lens || "N/A",
+    speed: parsedMetadata?.shutterSpeed || "N/A",
+    aperture: parsedMetadata?.aperture || "N/A",
+    focal: parsedMetadata?.focalLength || "N/A",
+    iso: parsedMetadata?.iso ? `ISO ${parsedMetadata.iso}` : "N/A",
+  };
+
+  const renderRelatedSection = (items: MediaItem[], loading: boolean, title: string, subtitle: string) => {
+    if (loading) {
+      return (
+        <section className="w-full max-w-6xl px-2 sm:px-4 mt-10 mb-8">
+          <div className="flex items-center gap-2 text-white/95 mb-4">
+            <Sparkles size={14} className="text-primary" />
+            <h3 className="text-sm sm:text-base font-black">{title}</h3>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="glass border border-white/10 rounded-2xl overflow-hidden p-3">
+                <div className="aspect-[4/3] rounded-xl bg-white/10 animate-pulse" />
+                <div className="h-3 rounded bg-white/10 mt-3 animate-pulse" />
+                <div className="h-3 rounded bg-white/10 mt-2 w-1/2 animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </section>
+      );
+    }
+
+    if (items.length === 0) return null;
+
+    return (
+      <section className="w-full max-w-6xl px-2 sm:px-4 mt-10 mb-8">
+        <div className="flex items-end justify-between gap-3 mb-4">
+          <div>
+            <div className="flex items-center gap-2 text-white/95">
+              <Sparkles size={14} className="text-primary" />
+              <h3 className="text-sm sm:text-base font-black">{title}</h3>
+            </div>
+            <p className="text-[10px] text-white/50 mt-1">{subtitle}</p>
+          </div>
+          <span className="text-[10px] font-bold text-white/50 bg-white/10 border border-white/10 px-2 py-1 rounded-full shrink-0">
+            {items.length} picks
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+          {items.map((item) => {
+            const relatedIndex = mediaList?.findIndex((listItem) => listItem.id === item.id) ?? -1;
+
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  if (onSelectMedia && relatedIndex !== -1) {
+                    onSelectMedia(item, relatedIndex);
+                    return;
+                  }
+
+                  if (relatedIndex < currentIndex && onPrev) {
+                    const diff = currentIndex - relatedIndex;
+                    for (let i = 0; i < diff; i++) onPrev();
+                  } else if (relatedIndex > currentIndex && onNext) {
+                    const diff = relatedIndex - currentIndex;
+                    for (let i = 0; i < diff; i++) onNext();
+                  }
+                }}
+                className="group text-left glass border border-white/10 rounded-2xl overflow-hidden shadow-lg hover:border-primary/40 hover:scale-[1.01] transition-all active:scale-98"
+              >
+                <div className="relative aspect-[4/3] bg-secondary overflow-hidden">
+                  {item.type === "IMAGE" ? (
+                    <img
+                      src={item.thumbnailUrl || item.url}
+                      alt={item.filename}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      draggable={false}
+                    />
+                  ) : (
+                    <div className="w-full h-full relative bg-neutral-900 group-hover:scale-105 transition-transform duration-500">
+                      <video
+                        src={`${item.url}#t=0.1`}
+                        className="w-full h-full object-cover opacity-75"
+                        muted
+                        preload="metadata"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center text-white bg-black/10">
+                        <span className="text-[8px] font-black bg-black/75 px-1.5 py-0.5 rounded tracking-tight">VIDEO</span>
+                      </div>
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                </div>
+                <div className="p-2.5">
+                  <p className="text-[11px] font-bold text-white truncate">{item.filename}</p>
+                  <span className="text-[9px] text-white/50 block mt-0.5">{item.type}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+    );
   };
 
   // Details sidebar content (shared between desktop sidebar and mobile bottom sheet)
   const detailsContent = (
     <>
+      {/* Filename & Editing */}
+      <div className="space-y-1 bg-muted/20 border border-border/40 p-3.5 rounded-2xl">
+        <span className="text-[9px] text-muted-foreground block uppercase font-bold">FILENAME</span>
+        {isEditingName ? (
+          <div className="flex gap-1.5 items-center">
+            <input
+              type="text"
+              value={tempName}
+              onChange={(e) => setTempName(e.target.value)}
+              className="flex-1 bg-secondary border border-border text-xs px-2.5 py-1.5 rounded-lg focus:outline-none focus:border-primary text-foreground min-w-0"
+            />
+            <button
+              onClick={handleRenameSave}
+              disabled={isSavingName}
+              className="px-2.5 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg cursor-pointer disabled:opacity-50 shrink-0"
+            >
+              Save
+            </button>
+            <button
+              onClick={() => {
+                setIsEditingName(false);
+                setTempName(media.filename);
+              }}
+              className="px-2.5 py-1.5 bg-secondary border border-border text-muted-foreground text-xs font-bold rounded-lg cursor-pointer shrink-0"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <div className="flex justify-between items-center">
+            <span className="font-bold text-foreground truncate block max-w-[200px]" title={media.filename}>{media.filename}</span>
+            {user && (!media.user || media.user.id === user.id) && (
+              <button
+                onClick={() => setIsEditingName(true)}
+                className="text-[10px] text-primary hover:text-primary/80 font-bold uppercase cursor-pointer"
+              >
+                Rename
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Canvas Image Editor Button */}
+      {media.type === "IMAGE" && user && (!media.user || media.user.id === user.id) && (
+        <button
+          onClick={() => setShowImageEditor(true)}
+          className="w-full py-2 bg-primary/10 hover:bg-primary/15 border border-primary/20 hover:border-primary/45 text-primary text-xs font-bold rounded-xl cursor-pointer transition-all flex items-center justify-center gap-1.5"
+        >
+          <Sparkles size={13} className="text-primary" /> Edit Photo copy (Canvas)
+        </button>
+      )}
+
       {/* Uploader Profile & Follow Button */}
       {media.user && (
         <div className="flex items-center justify-between p-3.5 bg-muted/40 border border-border/40 rounded-2xl">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white font-bold text-sm shadow overflow-hidden">
-              {media.user.avatarUrl ? (
-                <img src={media.user.avatarUrl} alt={media.user.name || ""} className="w-full h-full object-cover" />
-              ) : (
-                (media.user.name || media.user.email || "U").substring(0, 2).toUpperCase()
-              )}
-            </div>
+            <UserAvatar
+              avatarUrl={media.user.avatarUrl}
+              name={media.user.name}
+              email={media.user.email}
+              className="w-10 h-10 rounded-full font-bold text-sm shadow"
+            />
             <div>
               <p className="text-xs font-bold text-foreground leading-tight">{media.user.name || "Anonymous User"}</p>
               <p className="text-[10px] text-muted-foreground truncate max-w-[140px]">{media.user.email}</p>
@@ -413,34 +751,34 @@ export default function Lightbox({ media, onClose, onPrev, onNext, onUpdate }: L
         <div className="grid grid-cols-2 gap-3 text-xs bg-muted/20 border border-border/40 p-3.5 rounded-2xl">
           <div className="col-span-2">
             <span className="text-[9px] text-muted-foreground block">CAMERA SYSTEM</span>
-            <span className="font-bold text-foreground block">{mockExif.camera}</span>
+            <span className="font-bold text-foreground block">{exif.camera}</span>
           </div>
           <div className="col-span-2">
             <span className="text-[9px] text-muted-foreground block">OPTICAL LENS</span>
-            <span className="font-bold text-foreground block truncate">{mockExif.lens}</span>
+            <span className="font-bold text-foreground block truncate">{exif.lens}</span>
           </div>
           <div>
             <span className="text-[9px] text-muted-foreground block">EXPOSURE</span>
-            <span className="font-bold text-foreground block">{mockExif.speed}</span>
+            <span className="font-bold text-foreground block">{exif.speed}</span>
           </div>
           <div>
             <span className="text-[9px] text-muted-foreground block">APERTURE</span>
-            <span className="font-bold text-foreground block">{mockExif.aperture}</span>
+            <span className="font-bold text-foreground block">{exif.aperture}</span>
           </div>
           <div>
             <span className="text-[9px] text-muted-foreground block">FOCAL LENGTH</span>
-            <span className="font-bold text-foreground block">{mockExif.focal}</span>
+            <span className="font-bold text-foreground block">{exif.focal}</span>
           </div>
           <div>
             <span className="text-[9px] text-muted-foreground block">SENSITIVITY</span>
-            <span className="font-bold text-foreground block">{mockExif.iso}</span>
+            <span className="font-bold text-foreground block">{exif.iso}</span>
           </div>
         </div>
       </div>
 
       {/* Dynamic Tags Area */}
-      <div className="space-y-2">
-        <span className="text-[10px] font-extrabold tracking-wider text-muted-foreground uppercase">Associated Tags</span>
+      <div className="space-y-3.5 bg-muted/20 border border-border/40 p-3.5 rounded-2xl">
+        <span className="text-[10px] font-extrabold tracking-wider text-muted-foreground uppercase block">Associated Tags</span>
         <div className="flex flex-wrap gap-1.5">
           {!media.tags || media.tags.length === 0 ? (
             <span className="text-xs text-muted-foreground">No tags annotated yet</span>
@@ -448,118 +786,225 @@ export default function Lightbox({ media, onClose, onPrev, onNext, onUpdate }: L
             media.tags.map((t) => (
               <span
                 key={t.tag.name}
-                className="text-[10px] font-bold bg-primary/10 border border-primary/20 text-primary px-2.5 py-1 rounded-lg"
+                className="text-[10px] font-bold bg-primary/10 border border-primary/20 text-primary px-2.5 py-1 rounded-lg flex items-center gap-1"
               >
                 #{t.tag.name}
+                {user && (!media.user || media.user.id === user.id) && (
+                  <button
+                    onClick={() => handleRemoveTag(t.tag.name)}
+                    className="hover:text-rose-500 transition-colors ml-1 font-bold text-[8px] cursor-pointer"
+                  >
+                    ×
+                  </button>
+                )}
               </span>
             ))
           )}
         </div>
+
+        {user && (!media.user || media.user.id === user.id) && (
+          <div className="flex gap-1.5 mt-2">
+            <input
+              type="text"
+              placeholder="Add tag..."
+              value={newTag}
+              onChange={(e) => setNewTag(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleAddTag();
+                }
+              }}
+              className="flex-1 bg-secondary/80 border border-border text-[10px] px-2.5 py-1.5 rounded-lg focus:outline-none focus:border-primary/60 text-foreground"
+            />
+            <button
+              onClick={handleAddTag}
+              className="px-3 py-1.5 bg-primary text-primary-foreground text-[10px] font-semibold rounded-lg hover:bg-primary/95 transition-colors cursor-pointer"
+            >
+              Add
+            </button>
+          </div>
+        )}
       </div>
     </>
   );
 
   return (
     <div className="fixed inset-0 bg-background/95 backdrop-blur-md flex flex-col md:flex-row z-50 overflow-hidden animate-in fade-in duration-200">
-      {/* Top Header Floating Controls */}
-      <div className="absolute top-3 left-3 right-3 md:top-4 md:left-4 md:right-4 flex items-center justify-between z-20 pointer-events-none">
-        <div className="flex items-center gap-2 pointer-events-auto bg-black/40 backdrop-blur-md p-1.5 rounded-xl border border-white/10 text-white text-[10px] sm:text-xs font-bold px-2.5 sm:px-3 max-w-[45vw] sm:max-w-none truncate">
-          {media.filename}
-        </div>
-        <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
-          <button
-            onClick={() => setShowDetails(!showDetails)}
-            className={`p-2 sm:p-2.5 rounded-xl border border-white/10 text-white cursor-pointer transition-all ${
-              showDetails ? "bg-primary/60" : "bg-black/40 hover:bg-black/60"
-            }`}
-            title="Info details"
-          >
-            <Info size={16} />
-          </button>
-          {user && (!media.user || media.user.id === user.id) && (
-            <button
-              onClick={handleDownload}
-              className="p-2 sm:p-2.5 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-white cursor-pointer transition-all flex items-center justify-center"
-              title="Download original"
-            >
-              <Download size={16} />
-            </button>
-          )}
-          <button
-            onClick={onClose}
-            className="p-2 sm:p-2.5 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-white cursor-pointer transition-all"
-            title="Close Lightbox"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      </div>
-
       {/* Main viewer (Image / Video player) with touch swipe */}
       <div
-        className="flex-1 flex items-center justify-center relative p-4 pt-16 sm:p-8 sm:pt-16 select-none min-h-0"
+        className="flex-1 min-h-0 overflow-y-auto scroll-smooth select-none"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {/* Navigation Arrow buttons — hidden on mobile (use swipe instead) */}
-        {onPrev && (
-          <button
-            onClick={onPrev}
-            className="absolute left-2 sm:left-6 top-1/2 -translate-y-1/2 p-3 sm:p-3.5 rounded-2xl bg-black/35 hover:bg-black/65 border border-white/5 text-white cursor-pointer active:scale-95 transition-all z-10 hidden sm:flex"
-          >
-            <ChevronLeft size={22} />
-          </button>
-        )}
-        {onNext && (
-          <button
-            onClick={onNext}
-            className="absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 p-3 sm:p-3.5 rounded-2xl bg-black/35 hover:bg-black/65 border border-white/5 text-white cursor-pointer active:scale-95 transition-all z-10 hidden sm:flex"
-          >
-            <ChevronRight size={22} />
-          </button>
-        )}
-
-        {/* Media Content Node — with swipe transform */}
-        <div
-          className="max-w-full max-h-full overflow-hidden flex items-center justify-center will-change-transform"
-          style={{
-            transform: isSwiping ? `translateX(${swipeOffset}px)` : "translateX(0)",
-            transition: isSwiping ? "none" : "transform 0.25s ease-out",
-          }}
-        >
-          {media.type === "IMAGE" ? (
-            <img
-              src={media.url}
-              alt={media.filename}
-              className="max-w-[95vw] sm:max-w-[85vw] max-h-[70vh] sm:max-h-[85vh] object-contain rounded-lg transition-transform duration-200 shadow-2xl"
-              style={{ transform: `scale(${zoomScale})` }}
-              onDoubleClick={() => setZoomScale((prev) => (prev === 1 ? 2.2 : 1))}
-              draggable={false}
-              onContextMenu={(e) => e.preventDefault()}
-            />
-          ) : (
-            <CustomVideoPlayer
-              src={media.url}
-              autoPlay
-              filename={media.filename}
-              className="max-w-[95vw] sm:max-w-[85vw] max-h-[70vh] sm:max-h-[85vh] shadow-2xl"
-              downloadAllowed={false}
-            />
-          )}
+        {/* Top Header Floating Controls */}
+        <div className="sticky top-3 left-0 right-0 z-20 px-3 sm:px-4">
+          <div className="flex items-center justify-between bg-black/40 backdrop-blur-md p-1.5 rounded-xl border border-white/10 text-white text-[10px] sm:text-xs font-bold">
+            <div className="truncate max-w-[45vw] sm:max-w-none pr-2">
+              {media.filename}
+            </div>
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              <button
+                onClick={() => setShowDetails(!showDetails)}
+                className={`p-2 sm:p-2.5 rounded-xl border border-white/10 text-white cursor-pointer transition-all ${
+                  showDetails ? "bg-primary/60" : "bg-black/40 hover:bg-black/60"
+                }`}
+                title="Info details"
+              >
+                <Info size={16} />
+              </button>
+              {user && (!media.user || media.user.id === user.id) && (
+                <button
+                  onClick={handleDownload}
+                  className="p-2 sm:p-2.5 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-white cursor-pointer transition-all flex items-center justify-center"
+                  title="Download original"
+                >
+                  <Download size={16} />
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="p-2 sm:p-2.5 rounded-xl bg-black/40 hover:bg-black/60 border border-white/10 text-white cursor-pointer transition-all"
+                title="Close Lightbox"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Mobile swipe hint indicators */}
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-4 sm:hidden pointer-events-none">
+        <div className="relative flex flex-col items-center p-4 pt-8 sm:p-8 sm:pt-10 min-h-0">
+          {/* Navigation Arrow buttons — hidden on mobile (use swipe instead) */}
           {onPrev && (
-            <span className="text-[9px] text-white/40 font-bold flex items-center gap-1">
-              <ChevronLeft size={12} /> Swipe
-            </span>
+            <button
+              onClick={onPrev}
+              className="absolute left-2 sm:left-6 top-44 sm:top-52 p-3 sm:p-3.5 rounded-2xl bg-black/35 hover:bg-black/65 border border-white/5 text-white cursor-pointer active:scale-95 transition-all z-10 hidden sm:flex"
+            >
+              <ChevronLeft size={22} />
+            </button>
           )}
           {onNext && (
-            <span className="text-[9px] text-white/40 font-bold flex items-center gap-1">
-              Swipe <ChevronRight size={12} />
-            </span>
+            <button
+              onClick={onNext}
+              className="absolute right-2 sm:right-6 top-44 sm:top-52 p-3 sm:p-3.5 rounded-2xl bg-black/35 hover:bg-black/65 border border-white/5 text-white cursor-pointer active:scale-95 transition-all z-10 hidden sm:flex"
+            >
+              <ChevronRight size={22} />
+            </button>
+          )}
+
+          {/* Media Content Node — with swipe transform */}
+          <div
+            className="w-full flex items-center justify-center shrink-0 min-h-[300px] will-change-transform"
+            style={{
+              transform: isSwiping ? `translateX(${swipeOffset}px)` : "translateX(0)",
+              transition: isSwiping ? "none" : "transform 0.25s ease-out",
+            }}
+          >
+            {media.type === "IMAGE" ? (
+              <img
+                src={media.url}
+                alt={media.filename}
+                className="max-w-[95vw] sm:max-w-[85vw] max-h-[58vh] sm:max-h-[68vh] object-contain rounded-lg transition-transform duration-200 shadow-2xl"
+                style={{ transform: `scale(${zoomScale})` }}
+                onDoubleClick={() => setZoomScale((prev) => (prev === 1 ? 2.2 : 1))}
+                draggable={false}
+                onContextMenu={(e) => e.preventDefault()}
+              />
+            ) : (
+              <CustomVideoPlayer
+                src={media.url}
+                autoPlay
+                filename={media.filename}
+                className="max-w-[95vw] sm:max-w-[85vw] max-h-[58vh] sm:max-h-[68vh] shadow-2xl"
+                downloadAllowed={false}
+                onNext={onNext}
+                onPrev={onPrev}
+              />
+            )}
+          </div>
+
+          {/* Horizontal thumbnail strip at the bottom of the main viewer */}
+          {mediaList && currentIndex !== -1 && (
+            <div className="w-full max-w-xl mx-auto mt-4 px-2 pb-1 shrink-0 z-20">
+              <div className="bg-black/35 backdrop-blur-md border border-white/5 rounded-2xl p-1.5 flex items-center gap-1.5 overflow-x-auto scrollbar-none justify-start sm:justify-center select-none">
+                {mediaList.map((item, idx) => {
+                  const isActive = idx === currentIndex;
+                  return (
+                    <button
+                      key={item.id}
+                      ref={isActive ? activeThumbnailRef : undefined}
+                      onClick={() => {
+                        if (onSelectMedia) {
+                          onSelectMedia(item, idx);
+                        } else if (idx < currentIndex && onPrev) {
+                          const diff = currentIndex - idx;
+                          for (let i = 0; i < diff; i++) onPrev();
+                        } else if (idx > currentIndex && onNext) {
+                          const diff = idx - currentIndex;
+                          for (let i = 0; i < diff; i++) onNext();
+                        }
+                      }}
+                      className={`relative w-11 h-11 rounded-xl overflow-hidden border-2 cursor-pointer transition-all shrink-0 hover:scale-105 active:scale-95 ${
+                        isActive
+                          ? "border-primary ring-2 ring-primary/20 scale-105"
+                          : "border-transparent opacity-50 hover:opacity-90"
+                      }`}
+                    >
+                      {item.type === "IMAGE" ? (
+                        <img
+                          src={item.thumbnailUrl || item.url}
+                          alt={item.filename}
+                          className="w-full h-full object-cover"
+                          draggable={false}
+                        />
+                      ) : (
+                        <div className="w-full h-full relative bg-neutral-900">
+                          <video
+                            src={`${item.url}#t=0.1`}
+                            className="w-full h-full object-cover opacity-70"
+                            muted
+                            preload="metadata"
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center text-white/95 bg-black/10">
+                            <span className="text-[6px] font-black bg-black/75 px-1 py-0.5 rounded tracking-tight">VID</span>
+                          </div>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {renderRelatedSection(
+            relatedItems,
+            false,
+            "You May Also Like",
+            "Related picks based on matching media type, tags, and creator."
+          )}
+          {renderRelatedSection(
+            universeRelatedItems,
+            universeLoading,
+            "You May Also Like From Universe",
+            "Suggestions from your full media universe across every album."
+          )}
+
+          {/* Mobile swipe hint indicators */}
+          {!mediaList && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-4 sm:hidden pointer-events-none">
+              {onPrev && (
+                <span className="text-[9px] text-white/40 font-bold flex items-center gap-1">
+                  <ChevronLeft size={12} /> Swipe
+                </span>
+              )}
+              {onNext && (
+                <span className="text-[9px] text-white/40 font-bold flex items-center gap-1">
+                  Swipe <ChevronRight size={12} />
+                </span>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -702,6 +1147,17 @@ export default function Lightbox({ media, onClose, onPrev, onNext, onUpdate }: L
             </div>
           </div>
         </div>
+      )}
+
+      {/* Visual Canvas Image Editor Modal */}
+      {showImageEditor && media.type === "IMAGE" && (
+        <ImageEditor
+          media={media}
+          onClose={() => setShowImageEditor(false)}
+          onSaveSuccess={(newMedia) => {
+            if (onUpdate) onUpdate();
+          }}
+        />
       )}
     </div>
   );

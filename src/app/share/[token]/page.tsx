@@ -352,9 +352,10 @@ export default function ShareDetailPage() {
                 ) : (
                   <div className="w-full h-full relative">
                     <video
-                      src={item.url}
+                      src={`${item.url}#t=0.1`}
                       className="w-full h-full object-cover"
                       muted
+                      preload="metadata"
                       draggable={false}
                       onContextMenu={(e) => e.preventDefault()}
                     />

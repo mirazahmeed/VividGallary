@@ -50,6 +50,9 @@ export async function deleteSession() {
 }
 
 export async function getSession(): Promise<JWTSessionPayload | null> {
+  if (typeof globalThis !== "undefined" && (globalThis as any).mockSession) {
+    return (globalThis as any).mockSession;
+  }
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("session")?.value;

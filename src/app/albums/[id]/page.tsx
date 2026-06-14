@@ -26,7 +26,8 @@ import {
   Copy,
   X,
   CheckSquare,
-  Square
+  Square,
+  ArrowUpDown
 } from "lucide-react";
 
 interface Collaborator {
@@ -40,6 +41,7 @@ interface AlbumDetail {
   name: string;
   description: string | null;
   visibility: string;
+  isDefault: boolean;
   userId: string;
   user: { name: string | null; email: string };
   coverMediaId: string | null;
@@ -120,6 +122,30 @@ export default function AlbumDetailPage() {
 
   // Lightbox index state
   const [activeLightboxIndex, setActiveLightboxIndex] = useState<number | null>(null);
+
+  // Sorting state
+  const [sortBy, setSortBy] = useState<"date" | "name" | "size" | "kind">("date");
+
+  const sortedJointItems = React.useMemo(() => {
+    if (!album) return [];
+    const items = [...album.media];
+    items.sort((a, b) => {
+      if (sortBy === "name") {
+        return a.media.filename.localeCompare(b.media.filename);
+      }
+      if (sortBy === "size") {
+        return b.media.size - a.media.size; // Largest first
+      }
+      if (sortBy === "kind") {
+        const typeCompare = a.media.type.localeCompare(b.media.type);
+        if (typeCompare !== 0) return typeCompare;
+        return a.media.filename.localeCompare(b.media.filename);
+      }
+      // Default: date (addedAt) - newest first
+      return new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime();
+    });
+    return items;
+  }, [album, sortBy]);
 
   useEffect(() => {
     if (user && albumId) {
@@ -391,9 +417,13 @@ export default function AlbumDetailPage() {
     }
   };
 
-  // Remove files from Album (batch deletion of join table links)
+  // Remove files from Album (permanently deletes from database and storage)
   const handleRemoveMedia = async () => {
     if (selectedMediaIds.length === 0) return;
+
+    if (!window.confirm(`Are you sure you want to permanently delete these ${selectedMediaIds.length} items? This will remove them from the database, storage, and gallery. This action cannot be undone.`)) {
+      return;
+    }
 
     try {
       const res = await fetch(`/api/albums/${albumId}/media`, {
@@ -403,13 +433,13 @@ export default function AlbumDetailPage() {
       });
 
       if (res.ok) {
-        addNotification("Success", `Removed ${selectedMediaIds.length} items from Album`, "success");
+        addNotification("Success", `Permanently deleted ${selectedMediaIds.length} items`, "success");
         setSelectedMediaIds([]);
         setIsSelectMode(false);
         fetchAlbumDetail();
       }
     } catch {
-      addNotification("Error", "Failed to unlink items", "error");
+      addNotification("Error", "Failed to delete items", "error");
     }
   };
 
@@ -553,7 +583,7 @@ export default function AlbumDetailPage() {
     }
   };
 
-  const albumMediaItems = album.media.map((m) => m.media);
+  const albumMediaItems = sortedJointItems.map((m) => m.media);
 
   const handleSelectAll = () => {
     if (selectedMediaIds.length === albumMediaItems.length) {
@@ -602,7 +632,7 @@ export default function AlbumDetailPage() {
 
         {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-          {isOwner && (
+          {isOwner && !album.isDefault && (
             <button
               onClick={handleDeleteAlbum}
               className="p-2.5 rounded-xl border border-destructive/20 hover:bg-destructive/15 text-destructive cursor-pointer transition-colors shadow-sm"
@@ -629,6 +659,21 @@ export default function AlbumDetailPage() {
               <span className="hidden md:inline">Manage Album</span>
             </button>
           )}
+
+          {/* Sorting Dropdown Option */}
+          <div className="flex items-center border border-border/60 bg-muted/20 px-3 py-2 rounded-xl shrink-0 gap-1.5 shadow-sm">
+            <ArrowUpDown size={13} className="text-muted-foreground" />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer pr-1 border-none focus:ring-0"
+            >
+              <option value="date" className="bg-card">Sort: Date</option>
+              <option value="name" className="bg-card">Sort: Name</option>
+              <option value="size" className="bg-card">Sort: Size</option>
+              <option value="kind" className="bg-card">Sort: Kind</option>
+            </select>
+          </div>
 
           <button
             onClick={() => {
@@ -759,7 +804,7 @@ export default function AlbumDetailPage() {
         </div>
       ) : (
         <div className="masonry-grid pb-24">
-          {album.media.map((joint, index) => {
+          {sortedJointItems.map((joint, index) => {
             const item = joint.media;
             const isSelected = selectedMediaIds.includes(item.id);
             const heightClass = index % 3 === 0 ? "h-64" : index % 2 === 0 ? "h-80" : "h-72";
@@ -813,9 +858,10 @@ export default function AlbumDetailPage() {
                 ) : (
                   <div className="w-full h-full relative group-hover:scale-105 transition-transform duration-500">
                     <video
-                      src={item.url}
+                      src={`${item.url}#t=0.1`}
                       className="w-full h-full object-cover pointer-events-none"
                       muted
+                      preload="metadata"
                       draggable={false}
                       onContextMenu={(e) => e.preventDefault()}
                     />
@@ -844,6 +890,49 @@ export default function AlbumDetailPage() {
                       <span className="w-4.5 h-4.5 rounded bg-primary flex items-center justify-center text-[10px] font-black text-white">✓</span>
                     ) : (
                       <span className="w-4.5 h-4.5 rounded border border-white/60 block" />
+                    )}
+                  </div>
+                )}
+
+                {/* Per-media visibility toggle */}
+                {!isSelectMode && (
+                  <div className="absolute top-3 left-3 z-10 opacity-0 group-hover:opacity-100 transition-all">
+                    {canEdit ? (
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const nextVisibility = item.visibility === "PUBLIC" ? "MAKE_PRIVATE" : "MAKE_PUBLIC";
+                          try {
+                            const res = await fetch("/api/media", {
+                              method: "PUT",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                ids: [item.id],
+                                action: nextVisibility
+                              }),
+                            });
+                            if (res.ok) {
+                              addNotification("Success", `Media is now ${item.visibility === "PUBLIC" ? "PRIVATE" : "PUBLIC"}`, "success");
+                              fetchAlbumDetail();
+                            } else {
+                              const err = await res.json();
+                              addNotification("Error", err.error || "Failed to toggle visibility", "error");
+                            }
+                          } catch {
+                            addNotification("Error", "Server connection failed", "error");
+                          }
+                        }}
+                        className="p-1.5 rounded-xl bg-black/60 hover:bg-primary backdrop-blur-md border border-white/10 text-white text-[10px] font-bold flex items-center gap-1 hover:scale-105 transition-all cursor-pointer"
+                        title={`Toggle to ${item.visibility === "PUBLIC" ? "Private" : "Public"}`}
+                      >
+                        {item.visibility === "PUBLIC" ? <Globe size={12} className="text-emerald-400" /> : <Lock size={12} className="text-amber-400" />}
+                        <span>{item.visibility}</span>
+                      </button>
+                    ) : (
+                      <div className="p-1.5 rounded-xl bg-black/60 backdrop-blur-md border border-white/10 text-white text-[10px] font-bold flex items-center gap-1">
+                        {item.visibility === "PUBLIC" ? <Globe size={12} className="text-emerald-400" /> : <Lock size={12} className="text-amber-400" />}
+                        <span>{item.visibility}</span>
+                      </div>
                     )}
                   </div>
                 )}
@@ -894,8 +983,9 @@ export default function AlbumDetailPage() {
           <button
             onClick={handleRemoveMedia}
             className="flex items-center gap-1.5 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/25 text-xs font-bold text-rose-500 px-4 py-2.5 sm:px-5 sm:py-2.5 rounded-xl transition-all cursor-pointer shadow-sm active:scale-98 justify-center shrink-0"
+            title="Permanently delete selected items from database and storage"
           >
-            <Trash2 size={14} /> <span className="hidden sm:inline">Remove from Album</span><span className="sm:hidden">Remove</span>
+            <Trash2 size={14} /> <span className="hidden sm:inline">Delete Permanently</span><span className="sm:hidden">Delete</span>
           </button>
         </div>
       )}
@@ -943,7 +1033,12 @@ export default function AlbumDetailPage() {
                         {item.type === "IMAGE" ? (
                           <img src={item.url} className="w-full h-full object-cover" />
                         ) : (
-                          <video src={item.url} className="w-full h-full object-cover" muted />
+                          <video
+                            src={`${item.url}#t=0.1`}
+                            className="w-full h-full object-cover"
+                            muted
+                            preload="metadata"
+                          />
                         )}
 
                         {/* Checkbox indicator */}
@@ -1042,6 +1137,8 @@ export default function AlbumDetailPage() {
       {activeLightboxIndex !== null && (
         <Lightbox
           media={activeLightboxItem}
+          mediaList={albumMediaItems}
+          onSelectMedia={(item, index) => setActiveLightboxIndex(index)}
           onClose={() => setActiveLightboxIndex(null)}
           onPrev={activeLightboxIndex > 0 ? handlePrevLightbox : undefined}
           onNext={activeLightboxIndex < albumMediaItems.length - 1 ? handleNextLightbox : undefined}
@@ -1103,14 +1200,22 @@ export default function AlbumDetailPage() {
               {manageTab === "general" && (
                 <form onSubmit={handleSaveSettings} className="space-y-4">
                   <div>
-                    <label className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wider block mb-1">Album Title</label>
+                    <label className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wider block mb-1">
+                      Album Title {album.isDefault && "(System Default Album)"}
+                    </label>
                     <input
                       type="text"
                       required
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
-                      className="w-full bg-secondary/50 border border-border focus:border-primary/60 text-foreground text-xs px-3 py-2.5 rounded-xl focus:outline-none"
+                      disabled={album.isDefault}
+                      className="w-full bg-secondary/50 border border-border focus:border-primary/60 text-foreground text-xs px-3 py-2.5 rounded-xl focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                     />
+                    {album.isDefault && (
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        The default "Random Media" album cannot be renamed.
+                      </p>
+                    )}
                   </div>
 
                   <div>

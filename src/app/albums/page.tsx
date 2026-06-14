@@ -12,7 +12,8 @@ import {
   Users,
   Loader2,
   FolderHeart,
-  ChevronRight
+  ChevronRight,
+  Shuffle
 } from "lucide-react";
 
 interface AlbumItem {
@@ -20,7 +21,8 @@ interface AlbumItem {
   name: string;
   description: string | null;
   visibility: string;
-  coverMedia: { url: string } | null;
+  isDefault: boolean;
+  coverMedia: { url: string; type?: "IMAGE" | "VIDEO" } | null;
   parentId: string | null;
   _count: { media: number };
   user: { name: string | null; email: string };
@@ -56,7 +58,13 @@ export default function AlbumsPage() {
         const data = await res.json();
         // Hide child nested sub-albums from the root listing to keep it clean and organized (they are accessed inside parent!)
         const rootOnlyAlbums = data.albums.filter((a: AlbumItem) => !a.parentId);
-        setAlbums(rootOnlyAlbums);
+        // Sort: default albums go first, then others by name or default sort
+        const sortedAlbums = [...rootOnlyAlbums].sort((a: AlbumItem, b: AlbumItem) => {
+          if (a.isDefault && !b.isDefault) return -1;
+          if (!a.isDefault && b.isDefault) return 1;
+          return 0;
+        });
+        setAlbums(sortedAlbums);
       }
     } catch {
       addNotification("Error", "Failed to load albums", "error");
@@ -163,23 +171,43 @@ export default function AlbumsPage() {
                 {/* Album Cover Graphic card (55% height) */}
                 <div className="h-44 w-full relative bg-secondary/40 border-b border-border/40 overflow-hidden">
                   {album.coverMedia ? (
-                    <img
-                      src={album.coverMedia.url}
-                      alt={album.name}
-                      loading="lazy"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
+                    album.coverMedia.type === "VIDEO" ? (
+                      <video
+                        src={`${album.coverMedia.url}#t=0.1`}
+                        preload="metadata"
+                        muted
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    ) : (
+                      <img
+                        src={album.coverMedia.url}
+                        alt={album.name}
+                        loading="lazy"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    )
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-tr from-secondary to-muted/20 text-muted-foreground/80 font-bold group-hover:scale-102 transition-all">
-                      <FolderOpen size={36} className="text-muted-foreground/60" />
+                      {album.isDefault ? (
+                        <Shuffle size={36} className="text-primary/70 animate-pulse" />
+                      ) : (
+                        <FolderOpen size={36} className="text-muted-foreground/60" />
+                      )}
                     </div>
                   )}
 
                   {/* Quantity and visibility tags overlay */}
                   <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10 pointer-events-none">
-                    <span className="text-[9px] font-extrabold bg-black/45 backdrop-blur-md border border-white/10 text-white px-2.5 py-1 rounded-lg">
-                      {album._count.media} items
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] font-extrabold bg-black/45 backdrop-blur-md border border-white/10 text-white px-2.5 py-1 rounded-lg">
+                        {album._count.media} items
+                      </span>
+                      {album.isDefault && (
+                        <span className="text-[9px] font-extrabold bg-primary/80 backdrop-blur-md border border-primary/20 text-white px-2.5 py-1 rounded-lg flex items-center gap-1">
+                          <Shuffle size={10} /> Default
+                        </span>
+                      )}
+                    </div>
                     <div className="p-1.5 rounded-lg bg-black/45 backdrop-blur-md border border-white/10">
                       {getVisibilityIcon(album.visibility)}
                     </div>

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { storage } from "@/lib/storage";
+import { getOrCreateDefaultAlbum } from "@/lib/defaultAlbum";
+import sharp from "sharp";
 
 export const maxDuration = 60; // 1 minute timeout for video uploads
 
@@ -62,18 +64,56 @@ export async function POST(req: Request) {
       let height = 1080;
       let duration: number | null = null;
       let resolution: string | null = null;
+      let metadataJson: string | null = null;
+      let thumbnailUrl = fileUrl;
 
       if (type === "VIDEO") {
         duration = 12.4; // Mock standard video duration for display preview
         resolution = "1080p";
       } else {
-        // High fidelity EXIF mock specs for premium mock presentation
-        width = 3840;
-        height = 2160;
-      }
+        try {
+          const image = sharp(buffer);
+          const imageMeta = await image.metadata();
+          width = imageMeta.width || 1920;
+          height = imageMeta.height || 1080;
 
-      // Automatically generate a thumbnail URL (for demo, same as url or specialized)
-      const thumbnailUrl = fileUrl;
+          // Parse EXIF
+          let exifData: any = {};
+          if (imageMeta.exif) {
+            try {
+              const exifReader = require("exif-reader");
+              exifData = exifReader(imageMeta.exif);
+            } catch (e) {
+              console.error("Failed to parse EXIF:", e);
+            }
+          }
+
+          const exifInfo = {
+            camera: exifData.image?.Model || null,
+            lens: exifData.exif?.LensModel || null,
+            aperture: exifData.exif?.FNumber ? `f/${exifData.exif.FNumber}` : null,
+            iso: exifData.exif?.ISO || null,
+            shutterSpeed: exifData.exif?.ExposureTime ? `1/${Math.round(1 / exifData.exif.ExposureTime)}s` : null,
+            focalLength: exifData.exif?.FocalLength ? `${exifData.exif.FocalLength}mm` : null,
+            gps: exifData.gps?.GPSLatitude && exifData.gps?.GPSLongitude ? {
+              lat: exifData.gps.GPSLatitude[0] + exifData.gps.GPSLatitude[1]/60 + exifData.gps.GPSLatitude[2]/3600,
+              lng: exifData.gps.GPSLongitude[0] + exifData.gps.GPSLongitude[1]/60 + exifData.gps.GPSLongitude[2]/3600,
+            } : null,
+          };
+
+          metadataJson = JSON.stringify(exifInfo);
+
+          // Generate thumbnail (max 600px width/height)
+          const thumbBuffer = await image
+            .resize({ width: 600, height: 600, fit: "inside", withoutEnlargement: true })
+            .jpeg({ quality: 80 })
+            .toBuffer();
+
+          thumbnailUrl = await storage.upload(thumbBuffer, `thumb_${filename}.jpg`, "image/jpeg");
+        } catch (err) {
+          console.error("Error extracting metadata or thumbnail:", err);
+        }
+      }
 
       // Save media metadata to DB
       const media = await prisma.media.create({
@@ -89,11 +129,12 @@ export async function POST(req: Request) {
           duration,
           resolution,
           visibility: visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE",
+          metadata: metadataJson,
           userId: session.userId,
         },
       });
 
-      // If albumId was provided, add file to album and sync visibility
+      // If albumId was provided, add file to that album and sync visibility
       if (albumId) {
         // Verify album exists
         const album = await prisma.album.findUnique({
@@ -116,6 +157,15 @@ export async function POST(req: Request) {
             media.visibility = targetMediaVisibility;
           }
         }
+      } else {
+        // No album selected — auto-assign to the "Random Media" default album
+        const defaultAlbum = await getOrCreateDefaultAlbum(session.userId);
+        await prisma.mediaAlbum.create({
+          data: {
+            mediaId: media.id,
+            albumId: defaultAlbum.id,
+          },
+        });
       }
 
       uploadedMediaList.push(media);
@@ -142,10 +192,20 @@ export async function POST(req: Request) {
       media: uploadedMediaList,
       storageUsed: newStorageUsed,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Upload handler error:", error);
+    try {
+      const fs = require("fs");
+      const path = require("path");
+      fs.writeFileSync(
+        path.join(process.cwd(), "upload-error.txt"),
+        `Error: ${error?.message}\nStack: ${error?.stack || error}`
+      );
+    } catch (e) {
+      console.error("Failed to write error log", e);
+    }
     return NextResponse.json(
-      { error: "Upload processing failed" },
+      { error: "Upload processing failed", details: error?.message, stack: error?.stack },
       { status: 500 }
     );
   }

@@ -3,6 +3,7 @@
 import React, { useRef, useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { Search, Upload, Bell, CheckCircle, AlertTriangle, AlertCircle, Info, X, Menu } from "lucide-react";
+import UserAvatar from "./UserAvatar";
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -147,13 +148,12 @@ export default function Header({ onMenuClick }: HeaderProps) {
               {user.role}
             </span>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white font-bold text-sm shadow-md overflow-hidden shrink-0">
-            {user.avatarUrl ? (
-              <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              (user.name || user.email).substring(0, 2).toUpperCase()
-            )}
-          </div>
+          <UserAvatar
+            avatarUrl={user.avatarUrl}
+            name={user.name}
+            email={user.email}
+            className="w-9 h-9 rounded-xl font-bold text-sm shadow-md"
+          />
         </div>
       </div>
     </header>

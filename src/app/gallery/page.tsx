@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import Lightbox, { MediaItem } from "@/components/gallery/Lightbox";
+import Slideshow from "@/components/gallery/Slideshow";
 import {
   Image as PhotoIcon,
   Video as VideoIcon,
@@ -18,7 +19,9 @@ import {
   ChevronDown,
   Globe,
   Lock,
-  RotateCcw
+  RotateCcw,
+  Download,
+  Play
 } from "lucide-react";
 
 export default function GalleryPage() {
@@ -52,6 +55,44 @@ export default function GalleryPage() {
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [userAlbums, setUserAlbums] = useState<Array<{ id: string; name: string }>>([]);
   const [showAlbumDropdown, setShowAlbumDropdown] = useState(false);
+  const [isPlayingSlideshow, setIsPlayingSlideshow] = useState(false);
+  const [downloadingZip, setDownloadingZip] = useState(false);
+
+  const handleDownloadSelected = async () => {
+    if (selectedIds.length === 0) return;
+    setDownloadingZip(true);
+    addNotification("Archiving", `Creating ZIP archive for ${selectedIds.length} items...`, "info");
+    try {
+      const res = await fetch("/api/media/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedIds }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to generate ZIP");
+      }
+
+      // Convert to blob and trigger download
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `vividgallery_batch_${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      addNotification("Download Complete", "ZIP file download started", "success");
+      setSelectedIds([]);
+      setIsSelectMode(false);
+    } catch (err) {
+      console.error(err);
+      addNotification("Download Failed", "Could not generate ZIP package", "error");
+    } finally {
+      setDownloadingZip(false);
+    }
+  };
 
   // Lightbox states
   const [activeLightboxIndex, setActiveLightboxIndex] = useState<number | null>(null);
@@ -333,9 +374,10 @@ export default function GalleryPage() {
                 ) : (
                   <div className="w-full h-full relative group-hover:scale-105 transition-transform duration-500">
                     <video
-                      src={item.url}
+                      src={`${item.url}#t=0.1`}
                       className="w-full h-full object-cover pointer-events-none"
                       muted
+                      preload="metadata"
                       draggable={false}
                       onContextMenu={(e) => e.preventDefault()}
                     />
@@ -480,6 +522,35 @@ export default function GalleryPage() {
               </div>
             )}
 
+            {/* Batch Play Slideshow */}
+            {viewState !== "TRASH" && (
+              <button
+                onClick={() => setIsPlayingSlideshow(true)}
+                className="flex items-center gap-1.5 hover:bg-secondary text-xs font-bold text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl border border-border/60 transition-colors cursor-pointer"
+              >
+                <Play size={14} fill="currentColor" /> Play Slideshow
+              </button>
+            )}
+
+            {/* Batch Download ZIP */}
+            {viewState !== "TRASH" && (
+              <button
+                onClick={handleDownloadSelected}
+                disabled={downloadingZip}
+                className="flex items-center gap-1.5 hover:bg-secondary text-xs font-bold text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl border border-border/60 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {downloadingZip ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin text-primary" /> Archiving...
+                  </>
+                ) : (
+                  <>
+                    <Download size={14} /> Download ZIP
+                  </>
+                )}
+              </button>
+            )}
+
             {/* Batch Restore */}
             {viewState === "TRASH" && (
               <button
@@ -505,10 +576,24 @@ export default function GalleryPage() {
       {activeLightboxIndex !== null && (
         <Lightbox
           media={activeLightboxItem}
+          mediaList={mediaItems}
+          onSelectMedia={(item, index) => setActiveLightboxIndex(index)}
           onClose={() => setActiveLightboxIndex(null)}
           onPrev={activeLightboxIndex > 0 ? handlePrevLightbox : undefined}
           onNext={activeLightboxIndex < mediaItems.length - 1 ? handleNextLightbox : undefined}
           onUpdate={fetchMedia}
+        />
+      )}
+
+      {/* 5. Mixed-Media Slideshow Modal */}
+      {isPlayingSlideshow && (
+        <Slideshow
+          items={mediaItems.filter((item) => selectedIds.includes(item.id))}
+          onClose={() => {
+            setIsPlayingSlideshow(false);
+            setSelectedIds([]);
+            setIsSelectMode(false);
+          }}
         />
       )}
     </div>

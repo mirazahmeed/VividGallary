@@ -13,6 +13,12 @@ export function middleware(request: NextRequest) {
 
   // Block any direct request to /uploads/* (the old public static path)
   if (pathname.startsWith("/uploads/") || pathname === "/uploads") {
+    // Allow avatars to be accessed directly (which starts with avatar- or avatar_)
+    const filename = pathname.replace("/uploads/", "");
+    if (filename.startsWith("avatar-") || filename.startsWith("avatar_")) {
+      return NextResponse.next();
+    }
+
     return new NextResponse(
       JSON.stringify({
         error: "Direct media access is forbidden. Use the application to view media.",

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useApp } from "@/context/AppContext";
 import Lightbox, { MediaItem } from "@/components/gallery/Lightbox";
+import UserAvatar from "@/components/layout/UserAvatar";
 import {
   Image as PhotoIcon,
   Video as VideoIcon,
@@ -187,9 +188,10 @@ export default function ExplorePage() {
                   ) : (
                     <div className="w-full h-full relative group-hover:scale-105 transition-transform duration-500">
                       <video
-                        src={item.url}
+                        src={`${item.url}#t=0.1`}
                         className="w-full h-full object-cover pointer-events-none"
                         muted
+                        preload="metadata"
                         draggable={false}
                         onContextMenu={(e) => e.preventDefault()}
                       />
@@ -223,13 +225,12 @@ export default function ExplorePage() {
                 {item.user && (
                   <div className="p-4 flex items-center justify-between border-t border-border/50 bg-card/90 shrink-0">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white font-black text-xs shrink-0 overflow-hidden shadow-sm">
-                        {item.user.avatarUrl ? (
-                          <img src={item.user.avatarUrl} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          (item.user.name || item.user.email || "U").substring(0, 2).toUpperCase()
-                        )}
-                      </div>
+                      <UserAvatar
+                        avatarUrl={item.user.avatarUrl}
+                        name={item.user.name}
+                        email={item.user.email}
+                        className="w-8 h-8 rounded-full text-xs font-black"
+                      />
                       <div className="min-w-0">
                         <p className="text-[11px] font-bold text-foreground truncate leading-tight">
                           {item.user.name || "Anonymous"}
@@ -275,6 +276,8 @@ export default function ExplorePage() {
       {activeLightboxIndex !== null && (
         <Lightbox
           media={activeLightboxItem}
+          mediaList={mediaItems}
+          onSelectMedia={(item, index) => setActiveLightboxIndex(index)}
           onClose={() => setActiveLightboxIndex(null)}
           onPrev={activeLightboxIndex > 0 ? handlePrevLightbox : undefined}
           onNext={activeLightboxIndex < mediaItems.length - 1 ? handleNextLightbox : undefined}
