@@ -34,6 +34,12 @@ export async function GET(
       });
     }
 
+    const currentEpoch = Math.floor(Date.now() / 1000);
+    const maxAge = Math.max(0, payload.exp - currentEpoch);
+    const cacheControl = maxAge > 0
+      ? `private, max-age=${maxAge}`
+      : "private, no-store, no-cache, must-revalidate";
+
     // 2. Validate session cookie (authenticated user required)
     //    Exception: share page requests may not have a session,
     //    so we allow if the token's userId is "share-guest"
@@ -155,7 +161,7 @@ export async function GET(
           // Security headers
           "Content-Disposition": "inline",
           "X-Content-Type-Options": "nosniff",
-          "Cache-Control": "private, no-store, no-cache, must-revalidate",
+          "Cache-Control": cacheControl,
           "X-Robots-Tag": "noindex, nofollow",
           "X-Frame-Options": "SAMEORIGIN",
           "Referrer-Policy": "same-origin",
@@ -191,8 +197,8 @@ export async function GET(
         "Content-Disposition": "inline",
         // Prevent MIME type sniffing
         "X-Content-Type-Options": "nosniff",
-        // Prevent caching of media URLs
-        "Cache-Control": "private, no-store, no-cache, must-revalidate",
+        // Prevent caching of media URLs dynamically (allow cache for remaining token lifetime)
+        "Cache-Control": cacheControl,
         // Prevent search engine indexing of media
         "X-Robots-Tag": "noindex, nofollow",
         // Prevent embedding in iframes from other origins

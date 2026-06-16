@@ -46,6 +46,7 @@ interface SharedAsset {
         type: "IMAGE" | "VIDEO";
         url: string;
         size: number;
+        thumbnailUrl?: string | null;
       };
     }>;
   } | null;
@@ -60,6 +61,7 @@ interface SharedAsset {
         type: "IMAGE" | "VIDEO";
         url: string;
         size: number;
+        thumbnailUrl?: string | null;
       };
     }>;
   } | null;
@@ -342,7 +344,7 @@ export default function ShareDetailPage() {
               >
                 {item.type === "IMAGE" ? (
                   <img
-                    src={item.url}
+                    src={item.thumbnailUrl || item.url}
                     alt={item.filename}
                     className="w-full h-full object-cover"
                     loading="lazy"

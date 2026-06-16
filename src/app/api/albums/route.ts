@@ -4,27 +4,72 @@ import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/crypto";
 import { secureMediaUrls } from "@/lib/mediaUrl";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    // Get user's own albums AND collaborative albums they are a member of
-    const ownedAlbums = await prisma.album.findMany({
-      where: {
-        OR: [
-          { userId: session.userId },
-          {
-            permissions: {
-              some: {
-                userId: session.userId,
-              },
+    const { searchParams } = new URL(req.url);
+    const targetUserId = searchParams.get("userId");
+
+    let resolvedUserId = targetUserId;
+    if (targetUserId) {
+      const user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { id: targetUserId },
+            { username: targetUserId }
+          ]
+        },
+        select: { id: true }
+      });
+      if (!user) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+      resolvedUserId = user.id;
+    }
+
+    let whereClause: any = {
+      OR: [
+        { userId: resolvedUserId || session.userId },
+        {
+          permissions: {
+            some: {
+              userId: session.userId,
             },
           },
-        ],
-      },
+        },
+      ],
+    };
+
+    if (resolvedUserId && resolvedUserId !== session.userId) {
+      const friendship = await prisma.friendship.findFirst({
+        where: {
+          OR: [
+            { senderId: session.userId, receiverId: resolvedUserId },
+            { senderId: resolvedUserId, receiverId: session.userId }
+          ],
+          status: "ACCEPTED"
+        }
+      });
+
+      if (!friendship) {
+        whereClause = {
+          userId: resolvedUserId,
+          visibility: "PUBLIC"
+        };
+      } else {
+        whereClause = {
+          userId: resolvedUserId
+        };
+      }
+    }
+
+    // Get user's own albums AND collaborative albums they are a member of
+    const ownedAlbums = await prisma.album.findMany({
+      where: whereClause,
       include: {
         coverMedia: true,
         media: {
@@ -47,6 +92,8 @@ export async function GET() {
         },
         user: {
           select: {
+            id: true,
+            username: true,
             name: true,
             email: true,
           },

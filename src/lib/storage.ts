@@ -1,9 +1,15 @@
 import fs from "fs";
 import path from "path";
 
+export interface UploadOptions {
+  userId?: string;
+  albumId?: string;
+  type?: "image" | "video" | "avatar";
+}
+
 // Unified Storage Adapter Interface
 export interface StorageProvider {
-  upload(fileBuffer: Buffer, filename: string, mimeType: string): Promise<string>;
+  upload(fileBuffer: Buffer, filename: string, mimeType: string, options?: UploadOptions): Promise<string>;
   delete(fileUrl: string): Promise<void>;
 }
 
@@ -20,18 +26,28 @@ class LocalStorageProvider implements StorageProvider {
     }
   }
 
-  async upload(fileBuffer: Buffer, filename: string, mimeType: string): Promise<string> {
+  async upload(fileBuffer: Buffer, filename: string, mimeType: string, options?: UploadOptions): Promise<string> {
     // Generate a unique filename using timestamp to avoid conflicts
     const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
     const ext = path.extname(filename) || this.getExtensionFromMime(mimeType);
     const basename = path.basename(filename, ext);
-    const sanitizedFilename = `${basename.replace(/[^a-zA-Z0-9]/g, "_")}-${uniqueSuffix}${ext}`;
+    const truncatedBasename = basename.replace(/[^a-zA-Z0-9]/g, "_").substring(0, 50);
+    const sanitizedFilename = `${truncatedBasename}-${uniqueSuffix}${ext}`;
     
-    const filePath = path.join(this.uploadDir, sanitizedFilename);
+    const userId = options?.userId || "anonymous";
+    const albumId = options?.albumId || "default";
+    const contentType = options?.type || (mimeType.startsWith("video/") ? "video" : "image");
+
+    const targetSubdir = path.join(this.uploadDir, userId, albumId, contentType);
+    if (!fs.existsSync(targetSubdir)) {
+      fs.mkdirSync(targetSubdir, { recursive: true });
+    }
+
+    const filePath = path.join(targetSubdir, sanitizedFilename);
     fs.writeFileSync(filePath, fileBuffer);
     
     // Return relative URL that Next.js serves statically
-    return `/uploads/${sanitizedFilename}`;
+    return `/uploads/${userId}/${albumId}/${contentType}/${sanitizedFilename}`;
   }
 
   async delete(fileUrl: string): Promise<void> {
@@ -73,14 +89,19 @@ class S3StorageProvider implements StorageProvider {
     // we provide a complete mockup if keys are missing, and standard S3 code template.
   }
 
-  async upload(fileBuffer: Buffer, filename: string, mimeType: string): Promise<string> {
+  async upload(fileBuffer: Buffer, filename: string, mimeType: string, options?: UploadOptions): Promise<string> {
     const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
-    const objectKey = `${uniqueSuffix}-${filename}`;
+    
+    const userId = options?.userId || "anonymous";
+    const albumId = options?.albumId || "default";
+    const contentType = options?.type || (mimeType.startsWith("video/") ? "video" : "image");
+    
+    const objectKey = `${userId}/${albumId}/${contentType}/${uniqueSuffix}-${filename}`;
 
     if (!process.env.AWS_ACCESS_KEY_ID) {
       console.log(`[Storage Mock] Simulating S3 upload for ${filename}`);
       // Fall back to local storage dynamically for local developer comfort
-      return new LocalStorageProvider().upload(fileBuffer, filename, mimeType);
+      return new LocalStorageProvider().upload(fileBuffer, filename, mimeType, options);
     }
 
     try {
@@ -113,7 +134,7 @@ class S3StorageProvider implements StorageProvider {
       return s3Url;
     } catch (err) {
       console.error("AWS S3 Upload failed, falling back to Local Disk:", err);
-      return new LocalStorageProvider().upload(fileBuffer, filename, mimeType);
+      return new LocalStorageProvider().upload(fileBuffer, filename, mimeType, options);
     }
   }
 

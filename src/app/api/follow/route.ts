@@ -17,6 +17,7 @@ export async function GET() {
           following: {
             select: {
               id: true,
+              username: true,
               name: true,
               email: true,
               avatarUrl: true,
@@ -49,20 +50,31 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    const { targetUserId } = await req.json();
+    const { targetUserId: targetUserIdParam } = await req.json();
 
-    if (!targetUserId) {
+    if (!targetUserIdParam) {
       return NextResponse.json({ error: "Target user ID is required" }, { status: 400 });
     }
 
-    if (targetUserId === session.userId) {
-      return NextResponse.json({ error: "You cannot follow yourself" }, { status: 400 });
-    }
+    let targetUserId = targetUserIdParam;
+    const targetUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: targetUserIdParam },
+          { username: targetUserIdParam }
+        ]
+      },
+      select: { id: true, name: true, email: true }
+    });
 
-    // Verify target user exists
-    const targetUser = await prisma.user.findUnique({ where: { id: targetUserId } });
     if (!targetUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    targetUserId = targetUser.id;
+
+    if (targetUserId === session.userId) {
+      return NextResponse.json({ error: "You cannot follow yourself" }, { status: 400 });
     }
 
     // Check if already following
@@ -94,6 +106,20 @@ export async function POST(req: Request) {
       },
     });
 
+    // Trigger follow notification
+    const follower = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { name: true }
+    });
+    await prisma.notification.create({
+      data: {
+        userId: targetUserId,
+        senderId: session.userId,
+        type: "FOLLOW",
+        content: `${follower?.name || "Someone"} started following you.`
+      }
+    });
+
     return NextResponse.json({ success: true, followed: true });
   } catch (error) {
     console.error("Follow POST error:", error);
@@ -109,10 +135,25 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    const { targetUserId } = await req.json();
+    const { targetUserId: targetUserIdParam } = await req.json();
 
-    if (!targetUserId) {
+    if (!targetUserIdParam) {
       return NextResponse.json({ error: "Target user ID is required" }, { status: 400 });
+    }
+
+    let targetUserId = targetUserIdParam;
+    const targetUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: targetUserIdParam },
+          { username: targetUserIdParam }
+        ]
+      },
+      select: { id: true }
+    });
+
+    if (targetUser) {
+      targetUserId = targetUser.id;
     }
 
     const existing = await prisma.follow.findUnique({

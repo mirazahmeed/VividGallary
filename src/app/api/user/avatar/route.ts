@@ -32,7 +32,11 @@ export async function POST(req: Request) {
     const filename = `avatar-${session.userId}-${Date.now()}.${file.name.split(".").pop()}`;
 
     // Upload to active storage
-    const avatarUrl = await storage.upload(buffer, filename, mimeType);
+    const avatarUrl = await storage.upload(buffer, filename, mimeType, {
+      userId: session.userId,
+      albumId: "avatar",
+      type: "avatar"
+    });
 
     // Get current user to see if they have an old avatar to delete from storage
     const currentUser = await prisma.user.findUnique({

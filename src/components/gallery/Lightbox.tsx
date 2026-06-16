@@ -22,7 +22,8 @@ import {
   Link as LinkIcon,
   ShieldCheck,
   Loader2,
-  Sparkles
+  Sparkles,
+  Search
 } from "lucide-react";
 
 export interface MediaItem {
@@ -94,6 +95,7 @@ interface LightboxProps {
   onPrev?: () => void;
   onNext?: () => void;
   onUpdate?: () => void;
+  hideSuggestions?: boolean;
 }
 
 export default function Lightbox({
@@ -104,6 +106,7 @@ export default function Lightbox({
   onPrev,
   onNext,
   onUpdate,
+  hideSuggestions = false,
 }: LightboxProps) {
   const { user, addNotification } = useApp();
   const [showDetails, setShowDetails] = useState(false);
@@ -115,6 +118,87 @@ export default function Lightbox({
   const [showShareDrawer, setShowShareDrawer] = useState(false);
   const [durationDays, setDurationDays] = useState(7);
   const [password, setPassword] = useState("");
+
+  // Share in Chat states
+  const [showShareInChatDrawer, setShowShareInChatDrawer] = useState(false);
+  const [chatContacts, setChatContacts] = useState<any[]>([]);
+  const [searchResultsContacts, setSearchResultsContacts] = useState<any[]>([]);
+  const [contactsLoading, setContactsLoading] = useState(false);
+  const [sharingToUserId, setSharingToUserId] = useState<string | null>(null);
+  const [shareInChatSearch, setShareInChatSearch] = useState("");
+
+  // Load active conversation contacts
+  useEffect(() => {
+    if (showShareInChatDrawer) {
+      loadChatContacts();
+    } else {
+      setShareInChatSearch("");
+      setSearchResultsContacts([]);
+    }
+  }, [showShareInChatDrawer]);
+
+  const loadChatContacts = async () => {
+    setContactsLoading(true);
+    try {
+      const res = await fetch("/api/chat/conversations");
+      if (res.ok) {
+        const data = await res.json();
+        const contacts = (data.conversations || []).map((c: any) => c.user);
+        setChatContacts(contacts);
+      }
+    } catch {
+      console.error("Failed to load contacts for share");
+    } finally {
+      setContactsLoading(false);
+    }
+  };
+
+  const handleSearchContacts = async (query: string) => {
+    if (!query.trim()) {
+      setSearchResultsContacts([]);
+      return;
+    }
+    setContactsLoading(true);
+    try {
+      const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSearchResultsContacts(data.users || []);
+      }
+    } catch {
+      console.error("Failed to search contacts");
+    } finally {
+      setContactsLoading(false);
+    }
+  };
+
+  const handleShareMediaToUser = async (targetUserId: string) => {
+    if (!media) return;
+    setSharingToUserId(targetUserId);
+    try {
+      const res = await fetch("/api/chat/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          receiverId: targetUserId,
+          mediaId: media.id
+        })
+      });
+      if (res.ok) {
+        addNotification("Shared", "Media shared in chat successfully", "success");
+        setShowShareInChatDrawer(false);
+      } else {
+        const err = await res.json();
+        addNotification("Error", err.error || "Failed to share media", "error");
+      }
+    } catch {
+      addNotification("Error", "Network request failed", "error");
+    } finally {
+      setSharingToUserId(null);
+    }
+  };
+
+  const displayContacts = shareInChatSearch ? searchResultsContacts : chatContacts;
   
   const [zoomScale, setZoomScale] = useState(1);
   const [isFollowingUser, setIsFollowingUser] = useState(false);
@@ -165,7 +249,7 @@ export default function Lightbox({
   }, [media, universeMediaItems, relatedItems]);
 
   useEffect(() => {
-    if (!media?.id || !user) return;
+    if (!media?.id || !user || hideSuggestions) return;
 
     let cancelled = false;
     const loadUniverseMedia = async () => {
@@ -186,7 +270,7 @@ export default function Lightbox({
     return () => {
       cancelled = true;
     };
-  }, [media?.id, user]);
+  }, [media?.id, user, hideSuggestions]);
 
   useEffect(() => {
     if (activeThumbnailRef.current) {
@@ -270,6 +354,8 @@ export default function Lightbox({
       setZoomScale(1);
       setShareUrl("");
       setShowShareDrawer(false);
+      setShowShareInChatDrawer(false);
+      setShareInChatSearch("");
       setIsFollowingUser(!!media.user?.isFollowing);
       setSwipeOffset(0);
     }
@@ -647,13 +733,103 @@ export default function Lightbox({
           </button>
           
           <button
-            onClick={() => setShowShareDrawer(!showShareDrawer)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border/60 text-xs font-bold text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+            onClick={() => {
+              setShowShareDrawer(!showShareDrawer);
+              setShowShareInChatDrawer(false);
+            }}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border/60 text-xs font-bold cursor-pointer transition-colors ${
+              showShareDrawer
+                ? "bg-primary/10 border-primary/30 text-primary"
+                : "border-border/60 text-muted-foreground hover:text-foreground"
+            }`}
           >
             <Share2 size={15} /> Share
           </button>
+
+          {user && (
+            <button
+              onClick={() => {
+                setShowShareInChatDrawer(!showShareInChatDrawer);
+                setShowShareDrawer(false);
+              }}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border/60 text-xs font-bold cursor-pointer transition-colors ${
+                showShareInChatDrawer
+                  ? "bg-primary/10 border-primary/30 text-primary"
+                  : "border-border/60 text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <MessageSquare size={15} /> Share in Chat
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Share in Chat Drawer */}
+      {showShareInChatDrawer && (
+        <div className="p-4 bg-muted/40 border border-border/60 rounded-2xl space-y-3 animate-in slide-in-from-top-3 duration-200">
+          <h4 className="text-[10px] font-extrabold uppercase tracking-wide text-foreground flex items-center gap-1.5">
+            <MessageSquare size={12} className="text-primary" /> Share in Direct Chat
+          </h4>
+          
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search user to share with..."
+              value={shareInChatSearch}
+              onChange={(e) => {
+                setShareInChatSearch(e.target.value);
+                handleSearchContacts(e.target.value);
+              }}
+              className="w-full bg-secondary/80 border border-border text-xs pl-8 pr-3 py-1.5 rounded-lg focus:outline-none focus:border-primary/60 text-foreground"
+            />
+            <Search className="absolute left-2.5 top-2.5 text-muted-foreground" size={12} />
+          </div>
+
+          <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
+            {contactsLoading ? (
+              <div className="py-4 text-center text-xs font-semibold text-muted-foreground flex justify-center items-center gap-1.5">
+                <Loader2 className="animate-spin text-primary" size={12} /> Loading...
+              </div>
+            ) : displayContacts.length === 0 ? (
+              <div className="py-4 text-center text-xs text-muted-foreground font-semibold">
+                No users found. Try searching.
+              </div>
+            ) : (
+              displayContacts.map((contact: any) => (
+                <div
+                  key={contact.id}
+                  className="flex items-center justify-between p-2 rounded-xl hover:bg-secondary/40 transition-colors"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <UserAvatar
+                      avatarUrl={contact.avatarUrl}
+                      name={contact.name}
+                      email={contact.email}
+                      className="w-6 h-6 rounded-full font-bold text-[8px]"
+                    />
+                    <div className="truncate text-left">
+                      <p className="text-[10.5px] font-bold text-foreground truncate">{contact.name || "Media Owner"}</p>
+                      <p className="text-[8.5px] text-muted-foreground truncate">{contact.email}</p>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={() => handleShareMediaToUser(contact.id)}
+                    disabled={sharingToUserId === contact.id}
+                    className="px-2.5 py-1 bg-primary text-primary-foreground text-[9px] font-bold rounded-lg cursor-pointer hover:bg-primary/95 transition-all flex items-center gap-1 disabled:opacity-50 shrink-0"
+                  >
+                    {sharingToUserId === contact.id ? (
+                      <Loader2 size={9} className="animate-spin" />
+                    ) : (
+                      "Share"
+                    )}
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Sharing Generator Sub-panel */}
       {showShareDrawer && (
@@ -978,13 +1154,13 @@ export default function Lightbox({
             </div>
           )}
 
-          {renderRelatedSection(
+          {!hideSuggestions && renderRelatedSection(
             relatedItems,
             false,
             "You May Also Like",
             "Related picks based on matching media type, tags, and creator."
           )}
-          {renderRelatedSection(
+          {!hideSuggestions && renderRelatedSection(
             universeRelatedItems,
             universeLoading,
             "You May Also Like From Universe",

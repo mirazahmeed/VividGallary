@@ -12,6 +12,7 @@ datasource db {
 model User {
   id           String        @id @default(uuid())
   email        String        @unique
+  username     String?       @unique
   passwordHash String
   name         String?
   role         String        @default("USER") // ADMIN, USER
@@ -32,6 +33,13 @@ model User {
   activityLogs ActivityLog[]
   followers    Follow[]      @relation("Following") // Users who follow this user
   following    Follow[]      @relation("Follower")  // Users this user follows
+  sentMessages     Message[]     @relation("SentMessages")
+  receivedMessages Message[]     @relation("ReceivedMessages")
+  posts            Post[]
+  friendshipsSent  Friendship[]  @relation("FriendshipSender")
+  friendshipsReceived Friendship[] @relation("FriendshipReceiver")
+  notificationsReceived Notification[] @relation("NotificationRecipient")
+  notificationsSent     Notification[] @relation("NotificationSender")
 }
 
 model Media {
@@ -65,6 +73,12 @@ model Media {
   
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+  messages     Message[]
+  posts        Post[]
+  notifications Notification[]
+
+  @@index([userId])
+  @@index([userId, inTrash, isArchived])
 }
 
 model Album {
@@ -103,6 +117,7 @@ model MediaAlbum {
   album        Album         @relation(fields: [albumId], references: [id], onDelete: Cascade)
   
   @@id([mediaId, albumId])
+  @@index([albumId])
 }
 
 model Playlist {
@@ -167,8 +182,11 @@ model Comment {
   content   String
   createdAt DateTime @default(now())
   
-  mediaId   String
-  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  mediaId   String?
+  media     Media?   @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  
+  postId    String?
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
   
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -178,13 +196,17 @@ model Like {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
   
-  mediaId   String
-  media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  mediaId   String?
+  media     Media?   @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  
+  postId    String?
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
   
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   @@unique([mediaId, userId])
+  @@unique([postId, userId])
 }
 
 model Share {
@@ -244,4 +266,74 @@ model Follow {
   following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
 
   @@unique([followerId, followingId])
+}
+
+model Message {
+  id         String   @id @default(uuid())
+  content    String?  // Nullable for media-only messages
+  createdAt  DateTime @default(now())
+  isRead     Boolean  @default(false)
+  
+  senderId   String
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  
+  receiverId String
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  mediaId    String?
+  media      Media?   @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+
+  @@index([senderId, receiverId])
+}
+
+model Post {
+  id        String    @id @default(uuid())
+  content   String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  mediaId   String?
+  media     Media?    @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+  
+  comments  Comment[]
+  likes     Like[]
+  notifications Notification[]
+}
+
+model Friendship {
+  id         String   @id @default(uuid())
+  senderId   String
+  sender     User     @relation("FriendshipSender", fields: [senderId], references: [id], onDelete: Cascade)
+  
+  receiverId String
+  receiver   User     @relation("FriendshipReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  
+  status     String   @default("PENDING") // PENDING, ACCEPTED
+  createdAt  DateTime @default(now())
+  
+  @@unique([senderId, receiverId])
+  @@index([receiverId])
+  @@index([senderId, status])
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  senderId    String?
+  sender      User?    @relation("NotificationSender", fields: [senderId], references: [id], onDelete: Cascade)
+  type        String   // LIKE, COMMENT, SHARE, FRIEND_REQUEST, FOLLOW
+  content     String
+  isRead      Boolean  @default(false)
+  postId      String?
+  post        Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  mediaId     String?
+  media       Media?   @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, isRead])
 }

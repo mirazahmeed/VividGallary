@@ -19,7 +19,9 @@ import {
   Compass,
   UserCheck,
   Settings,
-  X
+  X,
+  MessageSquare,
+  User
 } from "lucide-react";
 
 interface SidebarProps {
@@ -28,7 +30,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
-  const { user, theme, toggleTheme, logout } = useApp();
+  const { user, theme, toggleTheme, logout, unreadChatCount } = useApp();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -41,6 +43,8 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
     { name: "Gallery", href: "/gallery", icon: GalleryIcon },
     { name: "Albums", href: "/albums", icon: FolderOpen },
     { name: "Playlists", href: "/playlists", icon: PlaySquare },
+    { name: "Chat", href: "/chat", icon: MessageSquare },
+    { name: "Profile", href: `/profile/${user.username || user.id}`, icon: User },
     { name: "Settings", href: "/settings", icon: Settings },
   ];
 
@@ -112,6 +116,16 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
             >
               <Icon size={20} className={isActive ? "" : "group-hover:text-primary transition-colors"} />
               {!isCollapsedVisual && <span className="font-medium text-sm">{item.name}</span>}
+              {!isCollapsedVisual && item.name === "Chat" && unreadChatCount > 0 && (
+                <span className="ml-auto bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 shadow-md animate-pulse">
+                  {unreadChatCount}
+                </span>
+              )}
+              {isCollapsedVisual && item.name === "Chat" && unreadChatCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-rose-500 text-white text-[8px] font-black rounded-full flex items-center justify-center shadow-md animate-pulse">
+                  {unreadChatCount}
+                </span>
+              )}
               {isCollapsedVisual && (
                 <div className="absolute left-16 bg-card border border-border text-foreground text-xs py-1.5 px-3 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 shadow-xl whitespace-nowrap z-50">
                   {item.name}

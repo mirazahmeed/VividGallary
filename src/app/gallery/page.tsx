@@ -21,11 +21,12 @@ import {
   Lock,
   RotateCcw,
   Download,
-  Play
+  Play,
+  Search
 } from "lucide-react";
 
 export default function GalleryPage() {
-  const { user, searchQuery, addNotification } = useApp();
+  const { user, mediaSearchQuery, setMediaSearchQuery, addNotification } = useApp();
   const searchParams = useSearchParams();
  
   // Swipe selection refs
@@ -111,7 +112,7 @@ export default function GalleryPage() {
       fetchMedia();
       fetchUserAlbums();
     }
-  }, [user, activeType, viewState, searchQuery]);
+  }, [user, activeType, viewState, mediaSearchQuery]);
 
   const fetchMedia = async () => {
     setLoading(true);
@@ -120,7 +121,7 @@ export default function GalleryPage() {
       if (viewState === "FAVORITE") url += "&favorite=true";
       if (viewState === "ARCHIVE") url += "&archived=true";
       if (viewState === "TRASH") url += "&trash=true";
-      if (searchQuery) url += `&search=${searchQuery}`;
+      if (mediaSearchQuery) url += `&search=${mediaSearchQuery}`;
 
       const res = await fetch(url);
       if (res.ok) {
@@ -241,6 +242,18 @@ export default function GalleryPage() {
           ))}
         </div>
 
+        {/* Media Search bar input */}
+        <div className="relative w-full md:max-w-xs">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+          <input
+            type="text"
+            value={mediaSearchQuery}
+            onChange={(e) => setMediaSearchQuery(e.target.value)}
+            placeholder="Search media..."
+            className="w-full bg-secondary/40 hover:bg-secondary/60 focus:bg-secondary border border-border/40 focus:border-primary/50 text-foreground text-xs pl-9 pr-3 py-2 rounded-xl focus:outline-none transition-all placeholder:text-muted-foreground/60"
+          />
+        </div>
+
         {/* Media type selectors & select mode trigger */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-3.5">
           {/* Mimetype category filters */}
@@ -313,7 +326,7 @@ export default function GalleryPage() {
           <SlidersHorizontal size={36} className="text-muted-foreground/60 mb-3" />
           <h3 className="text-base font-extrabold text-foreground mb-1">No media files found</h3>
           <p className="text-xs text-muted-foreground max-w-[280px]">
-            {searchQuery
+            {mediaSearchQuery
               ? "No files match your query in this category."
               : "Upload photos or video streams to initialize your media catalog."}
           </p>
@@ -364,7 +377,7 @@ export default function GalleryPage() {
                 {/* Media Node image/video thumbnail preview */}
                 {item.type === "IMAGE" ? (
                   <img
-                    src={item.url}
+                    src={item.thumbnailUrl || item.url}
                     alt={item.filename}
                     loading="lazy"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"

@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { storage } from "@/lib/storage";
 import { secureMediaUrls } from "@/lib/mediaUrl";
+import { getOrCreateDefaultAlbum } from "@/lib/defaultAlbum";
 import sharp from "sharp";
 
 export async function POST(
@@ -64,8 +65,15 @@ export async function POST(
       );
     }
 
+    // Identify primary album or default album to save nested file
+    const primaryAlbumId = originalMedia.albums[0]?.albumId || (await getOrCreateDefaultAlbum(session.userId)).id;
+
     // Upload edited file
-    const fileUrl = await storage.upload(buffer, newFilename, mimeType);
+    const fileUrl = await storage.upload(buffer, newFilename, mimeType, {
+      userId: session.userId,
+      albumId: primaryAlbumId,
+      type: "image"
+    });
 
     // Extract metadata & generate thumbnail
     let width = originalMedia.width || 1920;
@@ -84,7 +92,11 @@ export async function POST(
         .jpeg({ quality: 80 })
         .toBuffer();
 
-      thumbnailUrl = await storage.upload(thumbBuffer, `thumb_${newFilename}`, "image/jpeg");
+      thumbnailUrl = await storage.upload(thumbBuffer, `thumb_${newFilename}`, "image/jpeg", {
+        userId: session.userId,
+        albumId: primaryAlbumId,
+        type: "image"
+      });
     } catch (err) {
       console.error("Failed to generate metadata/thumbnail for edited image:", err);
     }

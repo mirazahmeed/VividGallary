@@ -14,11 +14,12 @@ import {
   Compass,
   UserPlus,
   UserMinus,
-  UserCheck
+  UserCheck,
+  Search
 } from "lucide-react";
 
 export default function ExplorePage() {
-  const { user, searchQuery, addNotification } = useApp();
+  const { user, mediaSearchQuery, setMediaSearchQuery, addNotification } = useApp();
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeType, setActiveType] = useState<string>("ALL"); // ALL, IMAGE, VIDEO
@@ -30,13 +31,13 @@ export default function ExplorePage() {
     if (user) {
       fetchMedia();
     }
-  }, [user, activeType, searchQuery]);
+  }, [user, activeType, mediaSearchQuery]);
 
   const fetchMedia = async () => {
     setLoading(true);
     try {
       let url = `/api/explore?type=${activeType !== "ALL" ? activeType : ""}`;
-      if (searchQuery) url += `&search=${searchQuery}`;
+      if (mediaSearchQuery) url += `&search=${mediaSearchQuery}`;
 
       const res = await fetch(url);
       if (res.ok) {
@@ -122,6 +123,18 @@ export default function ExplorePage() {
           </p>
         </div>
 
+        {/* Media Search bar input */}
+        <div className="relative w-full md:max-w-xs">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+          <input
+            type="text"
+            value={mediaSearchQuery}
+            onChange={(e) => setMediaSearchQuery(e.target.value)}
+            placeholder="Search community media..."
+            className="w-full bg-secondary/40 hover:bg-secondary/60 focus:bg-secondary border border-border/40 focus:border-primary/50 text-foreground text-xs pl-9 pr-3 py-2 rounded-xl focus:outline-none transition-all placeholder:text-muted-foreground/60"
+          />
+        </div>
+
         {/* Media type selectors */}
         <div className="flex items-center gap-3.5">
           <div className="flex border border-border/60 bg-muted/20 p-1 rounded-xl">
@@ -157,7 +170,7 @@ export default function ExplorePage() {
           <Compass size={36} className="text-muted-foreground/60 mb-3" />
           <h3 className="text-base font-extrabold text-foreground mb-1">No community posts yet</h3>
           <p className="text-xs text-muted-foreground max-w-[280px]">
-            {searchQuery
+            {mediaSearchQuery
               ? "No public files match your search query."
               : "When other users publish files as PUBLIC, they will appear in this global explore catalog."}
           </p>
@@ -178,7 +191,7 @@ export default function ExplorePage() {
                 <div className="relative flex-1 bg-secondary/15 overflow-hidden">
                   {item.type === "IMAGE" ? (
                     <img
-                      src={item.url}
+                      src={item.thumbnailUrl || item.url}
                       alt={item.filename}
                       loading="lazy"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"

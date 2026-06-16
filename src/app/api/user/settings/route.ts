@@ -15,6 +15,7 @@ export async function GET() {
       select: {
         id: true,
         email: true,
+        username: true,
         name: true,
         role: true,
         avatarUrl: true,
@@ -44,12 +45,31 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    const { name, bio, avatarUrl } = await req.json();
+    const { name, bio, avatarUrl, username } = await req.json();
 
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
     if (bio !== undefined) updateData.bio = bio;
     if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl;
+
+    if (username !== undefined) {
+      const sanitizedUsername = username.trim().toLowerCase().replace(/[^a-z0-9_.]/g, "");
+      if (sanitizedUsername.length < 3) {
+        return NextResponse.json({ error: "Username must be at least 3 characters and only contain alphanumeric characters, dots, or underscores" }, { status: 400 });
+      }
+
+      // Check if username is already taken by another user
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          username: sanitizedUsername,
+          NOT: { id: session.userId }
+        }
+      });
+      if (existingUser) {
+        return NextResponse.json({ error: "Username is already taken by another creator" }, { status: 400 });
+      }
+      updateData.username = sanitizedUsername;
+    }
 
     const updatedUser = await prisma.user.update({
       where: { id: session.userId },
@@ -57,6 +77,7 @@ export async function PUT(req: Request) {
       select: {
         id: true,
         email: true,
+        username: true,
         name: true,
         role: true,
         avatarUrl: true,

@@ -22,6 +22,7 @@ export default function SettingsPage() {
   // Profile forms state
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
+  const [username, setUsername] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
 
@@ -40,6 +41,7 @@ export default function SettingsPage() {
       setName(currentUser.name || "");
       setBio(currentUser.bio || "");
       setAvatarUrl(currentUser.avatarUrl || "");
+      setUsername(currentUser.username || "");
     }
   }, [currentUser]);
 
@@ -62,7 +64,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/user/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, bio, avatarUrl }),
+        body: JSON.stringify({ name, bio, avatarUrl, username }),
       });
 
       if (res.ok) {
@@ -274,6 +276,21 @@ export default function SettingsPage() {
                   className="w-full bg-secondary/40 border border-border/80 focus:border-primary/50 text-foreground text-xs px-3 py-3 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all font-semibold"
                   required
                 />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Username</label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_.]/g, ""))}
+                  placeholder="e.g. alex_rivera"
+                  className="w-full bg-secondary/40 border border-border/80 focus:border-primary/50 text-foreground text-xs px-3 py-3 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all font-semibold"
+                  required
+                />
+                <p className="text-[9px] text-muted-foreground">
+                  Your profile URL: <span className="text-primary font-bold">/profile/{username || "username"}</span> (only lowercase letters, numbers, underscores, and dots allowed)
+                </p>
               </div>
 
               <div className="space-y-1.5">

@@ -80,6 +80,7 @@ export async function GET(req: Request) {
             name: true,
             email: true,
             avatarUrl: true,
+            username: true,
           },
         },
         tags: {
@@ -89,7 +90,7 @@ export async function GET(req: Request) {
         comments: {
           include: {
             user: {
-              select: { id: true, name: true, avatarUrl: true },
+              select: { id: true, name: true, avatarUrl: true, username: true },
             },
           },
         },

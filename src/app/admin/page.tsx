@@ -449,7 +449,7 @@ export default function AdminPage() {
                       className="group relative aspect-square rounded-2xl border border-border/60 overflow-hidden bg-secondary/20 shadow-sm"
                     >
                       {item.type === "IMAGE" ? (
-                        <img src={item.url} alt="" className="w-full h-full object-cover" />
+                        <img src={item.thumbnailUrl || item.url} alt="" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full relative">
                           <video

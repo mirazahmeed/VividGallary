@@ -15,6 +15,7 @@ export interface UserStats {
 export interface UserProfile {
   id: string;
   email: string;
+  username: string | null;
   name: string | null;
   role: string;
   avatarUrl: string | null;
@@ -40,14 +41,50 @@ export interface UploadQueueItem {
   size: number;
 }
 
+export interface DbNotification {
+  id: string;
+  userId: string;
+  senderId: string | null;
+  sender: {
+    id: string;
+    name: string | null;
+    email: string;
+    avatarUrl: string | null;
+  } | null;
+  type: string; // LIKE, COMMENT, SHARE, FRIEND_REQUEST, FOLLOW
+  content: string;
+  isRead: boolean;
+  postId: string | null;
+  mediaId: string | null;
+  createdAt: string;
+}
+
+export interface UploadQueueItem {
+  id: string;
+  filename: string;
+  progress: number;
+  status: "idle" | "uploading" | "completed" | "error";
+  size: number;
+}
+
 interface AppContextType {
   user: UserProfile | null;
   loading: boolean;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  mediaSearchQuery: string;
+  setMediaSearchQuery: (query: string) => void;
   notifications: Notification[];
   addNotification: (title: string, message: string, type?: Notification["type"]) => void;
   clearNotification: (id: string) => void;
+  dbNotifications: DbNotification[];
+  fetchDbNotifications: () => Promise<void>;
+  markDbNotificationRead: (id: string) => Promise<void>;
+  clearAllDbNotifications: () => Promise<void>;
+  friendRequests: any[];
+  refreshFriendRequests: () => Promise<void>;
+  unreadChatCount: number;
+  refreshUnreadChatCount: () => Promise<void>;
   uploadQueue: UploadQueueItem[];
   addToUploadQueue: (files: FileList) => Promise<void>;
   clearUploadQueue: () => void;
@@ -63,7 +100,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [mediaSearchQuery, setMediaSearchQuery] = useState("");
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [dbNotifications, setDbNotifications] = useState<DbNotification[]>([]);
+  const [friendRequests, setFriendRequests] = useState<any[]>([]);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [uploadQueue, setUploadQueue] = useState<UploadQueueItem[]>([]);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const router = useRouter();
@@ -78,6 +119,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       document.documentElement.className = savedTheme === "light" ? "light-theme" : "";
     }
   }, []);
+
+  // Poll notifications, friend requests, and unread chat count when logged in
+  useEffect(() => {
+    if (user) {
+      fetchDbNotifications();
+      refreshFriendRequests();
+      refreshUnreadChatCount();
+
+      const interval = setInterval(() => {
+        fetchDbNotifications();
+        refreshFriendRequests();
+        refreshUnreadChatCount();
+      }, 10000);
+
+      return () => clearInterval(interval);
+    } else {
+      setDbNotifications([]);
+      setFriendRequests([]);
+      setUnreadChatCount(0);
+    }
+  }, [user]);
 
   // Sync user access restrictions
   useEffect(() => {
@@ -102,6 +164,74 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchDbNotifications = async () => {
+    try {
+      const res = await fetch("/api/notifications", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setDbNotifications(data.notifications || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch notifications:", err);
+    }
+  };
+
+  const markDbNotificationRead = async (id: string) => {
+    try {
+      const res = await fetch(`/api/notifications/${id}`, {
+        method: "PATCH"
+      });
+      if (res.ok) {
+        setDbNotifications((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+        );
+      }
+    } catch (err) {
+      console.error("Failed to mark notification as read:", err);
+    }
+  };
+
+  const clearAllDbNotifications = async () => {
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        setDbNotifications([]);
+      }
+    } catch (err) {
+      console.error("Failed to clear notifications:", err);
+    }
+  };
+
+  const refreshFriendRequests = async () => {
+    try {
+      const res = await fetch("/api/friends", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setFriendRequests(data.incomingRequests || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch friend requests:", err);
+    }
+  };
+
+  const refreshUnreadChatCount = async () => {
+    try {
+      const res = await fetch("/api/chat/conversations", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        const total = data.conversations.reduce(
+          (sum: number, convo: any) => sum + (convo.unreadCount || 0),
+          0
+        );
+        setUnreadChatCount(total);
+      }
+    } catch (err) {
+      console.error("Failed to fetch unread chat count:", err);
     }
   };
 
@@ -243,9 +373,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         loading,
         searchQuery,
         setSearchQuery,
+        mediaSearchQuery,
+        setMediaSearchQuery,
         notifications,
         addNotification,
         clearNotification,
+        dbNotifications,
+        fetchDbNotifications,
+        markDbNotificationRead,
+        clearAllDbNotifications,
+        friendRequests,
+        refreshFriendRequests,
+        unreadChatCount,
+        refreshUnreadChatCount,
         uploadQueue,
         addToUploadQueue,
         clearUploadQueue,

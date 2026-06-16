@@ -47,10 +47,29 @@ export async function POST(req: Request) {
     const userCount = await prisma.user.count();
     const role = userCount === 0 ? "ADMIN" : "USER";
 
+    const emailPrefix = email.split("@")[0];
+    const baseName = (name || firebaseName || emailPrefix || "user")
+      .toLowerCase()
+      .replace(/[^a-z0-9_.]/g, "_");
+
+    let username = baseName;
+    let counter = 1;
+    while (true) {
+      const existing = await prisma.user.findUnique({
+        where: { username },
+      });
+      if (!existing && username !== "") {
+        break;
+      }
+      username = `${baseName}_${counter}`;
+      counter++;
+    }
+
     user = await prisma.user.create({
       data: {
         id: uid, // Bind Firebase UID directly
         email,
+        username,
         passwordHash: "firebase-auth",
         name: name || firebaseName || "Media Member",
         role,

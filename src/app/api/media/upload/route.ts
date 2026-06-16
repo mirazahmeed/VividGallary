@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { storage } from "@/lib/storage";
 import { getOrCreateDefaultAlbum } from "@/lib/defaultAlbum";
+import { secureMediaUrls } from "@/lib/mediaUrl";
 import sharp from "sharp";
 
 export const maxDuration = 60; // 1 minute timeout for video uploads
@@ -42,6 +43,22 @@ export async function POST(req: Request) {
       );
     }
 
+    // Resolve target album ID beforehand to structure directory hierarchy
+    let targetAlbumId = albumId || undefined;
+    let targetAlbum = null;
+    if (albumId) {
+      targetAlbum = await prisma.album.findUnique({
+        where: { id: albumId, userId: session.userId },
+      });
+    }
+    if (!targetAlbum) {
+      const defaultAlbum = await getOrCreateDefaultAlbum(session.userId);
+      targetAlbum = defaultAlbum;
+      targetAlbumId = defaultAlbum.id;
+    } else {
+      targetAlbumId = targetAlbum.id;
+    }
+
     const uploadedMediaList = [];
 
     for (const file of files) {
@@ -57,7 +74,11 @@ export async function POST(req: Request) {
       }
 
       // Upload file to active storage engine (Local / S3 / R2)
-      const fileUrl = await storage.upload(buffer, filename, mimeType);
+      const fileUrl = await storage.upload(buffer, filename, mimeType, {
+        userId: session.userId,
+        albumId: targetAlbumId,
+        type: type.toLowerCase() as "image" | "video"
+      });
 
       // Extract metadata or mock high-fidelity EXIF details
       let width = 1920;
@@ -109,7 +130,11 @@ export async function POST(req: Request) {
             .jpeg({ quality: 80 })
             .toBuffer();
 
-          thumbnailUrl = await storage.upload(thumbBuffer, `thumb_${filename}.jpg`, "image/jpeg");
+          thumbnailUrl = await storage.upload(thumbBuffer, `thumb_${filename}.jpg`, "image/jpeg", {
+            userId: session.userId,
+            albumId: targetAlbumId,
+            type: "image"
+          });
         } catch (err) {
           console.error("Error extracting metadata or thumbnail:", err);
         }
@@ -134,38 +159,24 @@ export async function POST(req: Request) {
         },
       });
 
-      // If albumId was provided, add file to that album and sync visibility
-      if (albumId) {
-        // Verify album exists
-        const album = await prisma.album.findUnique({
-          where: { id: albumId, userId: session.userId },
-        });
-        if (album) {
-          await prisma.mediaAlbum.create({
-            data: {
-              mediaId: media.id,
-              albumId: album.id,
-            },
-          });
+      // Add file to resolved album and sync visibility
+      await prisma.mediaAlbum.create({
+        data: {
+          mediaId: media.id,
+          albumId: targetAlbumId,
+        },
+      });
 
-          const targetMediaVisibility = album.visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE";
-          if (media.visibility !== targetMediaVisibility) {
-            await prisma.media.update({
-              where: { id: media.id },
-              data: { visibility: targetMediaVisibility },
-            });
-            media.visibility = targetMediaVisibility;
-          }
-        }
-      } else {
-        // No album selected — auto-assign to the "Random Media" default album
-        const defaultAlbum = await getOrCreateDefaultAlbum(session.userId);
-        await prisma.mediaAlbum.create({
-          data: {
-            mediaId: media.id,
-            albumId: defaultAlbum.id,
-          },
+      let targetMediaVisibility = targetAlbum.visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE";
+      if (visibility === "PUBLIC") {
+        targetMediaVisibility = "PUBLIC";
+      }
+      if (media.visibility !== targetMediaVisibility) {
+        await prisma.media.update({
+          where: { id: media.id },
+          data: { visibility: targetMediaVisibility },
         });
+        media.visibility = targetMediaVisibility;
       }
 
       uploadedMediaList.push(media);
@@ -187,9 +198,11 @@ export async function POST(req: Request) {
       },
     });
 
+    const securedMedia = secureMediaUrls(uploadedMediaList, session.userId);
+
     return NextResponse.json({
       success: true,
-      media: uploadedMediaList,
+      media: securedMedia,
       storageUsed: newStorageUsed,
     });
   } catch (error: any) {

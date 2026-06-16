@@ -476,7 +476,7 @@ export default function AlbumDetailPage() {
 
   // Delete dynamic album entirely
   const handleDeleteAlbum = async () => {
-    if (!window.confirm("Are you sure you want to delete this album? (Your media files will NOT be deleted from the database).")) return;
+    if (!window.confirm("Are you sure you want to delete this album? All media files inside will be permanently deleted from everywhere — gallery, other albums, playlists, posts, and chat.")) return;
     try {
       const res = await fetch(`/api/albums/${albumId}`, { method: "DELETE" });
       if (res.ok) {
@@ -848,7 +848,7 @@ export default function AlbumDetailPage() {
                 {/* Media Image/Video */}
                 {item.type === "IMAGE" ? (
                   <img
-                    src={item.url}
+                    src={item.thumbnailUrl || item.url}
                     alt={item.filename}
                     loading="lazy"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
@@ -1031,7 +1031,7 @@ export default function AlbumDetailPage() {
                         }`}
                       >
                         {item.type === "IMAGE" ? (
-                          <img src={item.url} className="w-full h-full object-cover" />
+                          <img src={item.thumbnailUrl || item.url} className="w-full h-full object-cover" />
                         ) : (
                           <video
                             src={`${item.url}#t=0.1`}

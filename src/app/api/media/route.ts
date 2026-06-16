@@ -19,10 +19,34 @@ export async function GET(req: Request) {
     const albumId = searchParams.get("albumId");
     const tag = searchParams.get("tag");
     const search = searchParams.get("search");
+    const targetUserId = searchParams.get("userId");
+    let resolvedUserId = session.userId;
+
+    if (targetUserId) {
+      const user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { id: targetUserId },
+            { username: targetUserId }
+          ]
+        },
+        select: { id: true }
+      });
+      if (user) {
+        resolvedUserId = user.id;
+      } else {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+    }
 
     const whereClause: any = {
-      userId: session.userId,
+      userId: resolvedUserId,
     };
+
+    // If querying someone else's media, only show public items
+    if (resolvedUserId !== session.userId) {
+      whereClause.visibility = "PUBLIC";
+    }
 
     // Filter by trash state (default: exclude trashed files)
     if (trash === "true") {
@@ -102,6 +126,7 @@ export async function GET(req: Request) {
             user: {
               select: {
                 id: true,
+                username: true,
                 name: true,
                 avatarUrl: true,
               },

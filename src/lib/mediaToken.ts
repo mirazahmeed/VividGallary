@@ -15,7 +15,9 @@ interface StreamTokenPayload {
  * It is signed with HMAC-SHA256 to prevent tampering.
  */
 export function generateStreamToken(mediaUrl: string, userId: string): string {
-  const exp = Math.floor(Date.now() / 1000) + TOKEN_EXPIRY_SECONDS;
+  const bucketSize = 5 * 60; // 5 minutes stable window
+  const currentEpoch = Math.floor(Date.now() / 1000);
+  const exp = (Math.floor(currentEpoch / bucketSize) + 2) * bucketSize;
   const payload: StreamTokenPayload = { mediaUrl, userId, exp };
   const payloadStr = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signature = crypto

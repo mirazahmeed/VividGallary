@@ -3,6 +3,24 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/crypto";
 import { secureMediaItem } from "@/lib/mediaUrl";
+import { storage } from "@/lib/storage";
+
+async function getAllSubAlbumIds(albumId: string): Promise<string[]> {
+  const ids = [albumId];
+  let index = 0;
+  while (index < ids.length) {
+    const currentId = ids[index];
+    const children = await prisma.album.findMany({
+      where: { parentId: currentId },
+      select: { id: true }
+    });
+    for (const child of children) {
+      ids.push(child.id);
+    }
+    index++;
+  }
+  return ids;
+}
 
 export async function GET(
   req: Request,
@@ -24,6 +42,7 @@ export async function GET(
         user: {
           select: {
             id: true,
+            username: true,
             name: true,
             email: true,
           },
@@ -44,6 +63,7 @@ export async function GET(
             user: {
               select: {
                 id: true,
+                username: true,
                 name: true,
                 email: true,
               },
@@ -254,6 +274,64 @@ export async function DELETE(
       return NextResponse.json({ error: "Cannot delete the default Random Media album" }, { status: 403 });
     }
 
+    // 1. Get all sub-album IDs recursively
+    const targetAlbumIds = await getAllSubAlbumIds(id);
+
+    // 2. Find ALL media in these albums (delete from everywhere, not just exclusive)
+    const mediaRelations = await prisma.mediaAlbum.findMany({
+      where: { albumId: { in: targetAlbumIds } },
+      include: { media: true }
+    });
+
+    // 3. Collect unique media items to delete
+    const mediaIdsToDelete = new Set<string>();
+    const mediaToDelete: any[] = [];
+    let totalFreedSize = 0;
+
+    for (const relation of mediaRelations) {
+      const media = relation.media;
+      if (mediaIdsToDelete.has(media.id)) continue;
+      mediaIdsToDelete.add(media.id);
+      mediaToDelete.push(media);
+      totalFreedSize += media.size;
+    }
+
+    // 4. Delete files from physical storage
+    await Promise.all(
+      mediaToDelete.map(async (file) => {
+        try {
+          await storage.delete(file.url);
+          if (file.thumbnailUrl && file.thumbnailUrl !== file.url) {
+            await storage.delete(file.thumbnailUrl);
+          }
+        } catch (storageErr) {
+          console.error(`Failed to delete storage file for media ${file.id}:`, storageErr);
+        }
+      })
+    );
+
+    // 5. Delete media from database (cascade removes from all albums, playlists, tags, comments, likes, shares; posts/messages get mediaId set to null)
+    if (mediaToDelete.length > 0) {
+      await prisma.media.deleteMany({
+        where: {
+          id: { in: mediaToDelete.map(f => f.id) }
+        }
+      });
+
+      // 6. Recalculate user storage usage
+      const user = await prisma.user.findUnique({
+        where: { id: session.userId }
+      });
+      if (user) {
+        const newStorageUsed = Math.max(0, user.storageUsed - totalFreedSize);
+        await prisma.user.update({
+          where: { id: session.userId },
+          data: { storageUsed: newStorageUsed }
+        });
+      }
+    }
+
+    // 7. Delete the album (cascade deletes sub-albums, permissions, shares, remaining MediaAlbum relations)
     await prisma.album.delete({
       where: { id },
     });
@@ -262,11 +340,11 @@ export async function DELETE(
       data: {
         userId: session.userId,
         action: "ALBUM_DELETE",
-        details: `Deleted album "${album.name}"`,
+        details: `Deleted album "${album.name}" along with ${mediaToDelete.length} media items from everywhere`,
       },
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, deletedMediaCount: mediaToDelete.length });
   } catch (error) {
     console.error("Album delete error:", error);
     return NextResponse.json(
@@ -275,3 +353,4 @@ export async function DELETE(
     );
   }
 }
+

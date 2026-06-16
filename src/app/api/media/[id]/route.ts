@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { secureMediaUrls } from "@/lib/mediaUrl";
+import { storage } from "@/lib/storage";
 
 // GET a specific media file details
 export async function GET(
@@ -169,6 +170,73 @@ export async function PUT(
     console.error("Update media error:", error);
     return NextResponse.json(
       { error: "Failed to update media" },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE: Permanently delete a single media item from everywhere
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    const { id } = await params;
+
+    // Fetch file details for storage cleanup
+    const media = await prisma.media.findUnique({
+      where: { id, userId: session.userId },
+    });
+
+    if (!media) {
+      return NextResponse.json({ error: "Media not found or unauthorized" }, { status: 404 });
+    }
+
+    // 1. Delete from physical storage
+    try {
+      await storage.delete(media.url);
+      if (media.thumbnailUrl && media.thumbnailUrl !== media.url) {
+        await storage.delete(media.thumbnailUrl);
+      }
+    } catch (storageErr) {
+      console.error(`Failed to delete storage file for media ${id}:`, storageErr);
+    }
+
+    // 2. Delete from database (cascade removes MediaAlbum, PlaylistItem, MediaTag, Comment, Like, Share; Post/Message get mediaId set to null)
+    await prisma.media.delete({
+      where: { id },
+    });
+
+    // 3. Recalculate user storage
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+    });
+    if (user) {
+      const newStorageUsed = Math.max(0, user.storageUsed - media.size);
+      await prisma.user.update({
+        where: { id: session.userId },
+        data: { storageUsed: newStorageUsed },
+      });
+    }
+
+    await prisma.activityLog.create({
+      data: {
+        userId: session.userId,
+        action: "MEDIA_PERMANENT_DELETE",
+        details: `Permanently deleted "${media.filename}" from everywhere (freed ${(media.size / 1024 / 1024).toFixed(2)} MB)`,
+      },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Single media delete error:", error);
+    return NextResponse.json(
+      { error: "Failed to delete media" },
       { status: 500 }
     );
   }

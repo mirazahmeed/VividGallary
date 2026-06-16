@@ -448,7 +448,7 @@ export default function PlaylistDetailPage() {
                     <div className="w-14 h-14 rounded-xl border border-border bg-secondary overflow-hidden shrink-0">
                       {item.media.type === "IMAGE" ? (
                         <img
-                          src={item.media.url}
+                          src={item.media.thumbnailUrl || item.media.url}
                           className="w-full h-full object-cover"
                           draggable={false}
                           onContextMenu={(e) => e.preventDefault()}
@@ -548,7 +548,7 @@ export default function PlaylistDetailPage() {
                       >
                         {item.type === "IMAGE" ? (
                           <img
-                            src={item.url}
+                            src={item.thumbnailUrl || item.url}
                             className="w-full h-full object-cover"
                             draggable={false}
                             onContextMenu={(e) => e.preventDefault()}

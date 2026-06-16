@@ -13,9 +13,11 @@ export function middleware(request: NextRequest) {
 
   // Block any direct request to /uploads/* (the old public static path)
   if (pathname.startsWith("/uploads/") || pathname === "/uploads") {
-    // Allow avatars to be accessed directly (which starts with avatar- or avatar_)
-    const filename = pathname.replace("/uploads/", "");
-    if (filename.startsWith("avatar-") || filename.startsWith("avatar_")) {
+    const segments = pathname.split("/").filter(Boolean);
+    const filename = segments[segments.length - 1] || "";
+    // Allow avatars to be accessed directly (which starts with avatar- or avatar_ or contains avatar folder)
+    const isAvatar = filename.startsWith("avatar-") || filename.startsWith("avatar_") || segments.includes("avatar");
+    if (isAvatar) {
       return NextResponse.next();
     }
 

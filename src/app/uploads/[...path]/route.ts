@@ -4,20 +4,31 @@ import fs from "fs";
 
 export async function GET(
   req: Request,
-  { params }: { params: Promise<{ filename: string }> }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
-    const { filename } = await params;
+    const { path: pathSegments } = await params;
+    const relativePath = path.join(...pathSegments);
+
+    // Prevent directory traversal attacks
+    const resolvedPath = path.resolve(process.cwd(), "storage", "uploads", relativePath);
+    const uploadDir = path.resolve(process.cwd(), "storage", "uploads");
+    if (!resolvedPath.startsWith(uploadDir)) {
+      return new NextResponse("Access denied", { status: 403 });
+    }
+
+    const filename = pathSegments[pathSegments.length - 1] || "";
 
     // Enforce that only avatars can be accessed directly
-    if (!filename.startsWith("avatar-") && !filename.startsWith("avatar_")) {
+    const isAvatar = filename.startsWith("avatar-") || filename.startsWith("avatar_") || pathSegments.includes("avatar");
+    if (!isAvatar) {
       return new NextResponse(
         JSON.stringify({ error: "Access denied" }),
         { status: 403, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    const filePath = path.join(process.cwd(), "storage", "uploads", filename);
+    const filePath = resolvedPath;
 
     if (!fs.existsSync(filePath)) {
       return new NextResponse("Not found", { status: 404 });
