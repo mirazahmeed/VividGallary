@@ -87,6 +87,7 @@ export async function POST(req: Request) {
       let resolution: string | null = null;
       let metadataJson: string | null = null;
       let thumbnailUrl = fileUrl;
+      let gridThumbUrl: string | null = null;
 
       if (type === "VIDEO") {
         duration = 12.4; // Mock standard video duration for display preview
@@ -124,13 +125,25 @@ export async function POST(req: Request) {
 
           metadataJson = JSON.stringify(exifInfo);
 
-          // Generate thumbnail (max 600px width/height)
+          // Generate thumbnail (max 600px width/height) for detail/lightbox view
           const thumbBuffer = await image
             .resize({ width: 600, height: 600, fit: "inside", withoutEnlargement: true })
             .jpeg({ quality: 80 })
             .toBuffer();
 
           thumbnailUrl = await storage.upload(thumbBuffer, `thumb_${filename}.jpg`, "image/jpeg", {
+            userId: session.userId,
+            albumId: targetAlbumId,
+            type: "image"
+          });
+
+          // Generate smaller WebP grid thumbnail (max 400px) for gallery grid cards
+          const gridThumbBuffer = await sharp(buffer)
+            .resize({ width: 400, height: 400, fit: "inside", withoutEnlargement: true })
+            .webp({ quality: 75 })
+            .toBuffer();
+
+          gridThumbUrl = await storage.upload(gridThumbBuffer, `grid_${filename}.webp`, "image/webp", {
             userId: session.userId,
             albumId: targetAlbumId,
             type: "image"
@@ -147,6 +160,7 @@ export async function POST(req: Request) {
           type,
           url: fileUrl,
           thumbnailUrl,
+          gridThumbUrl,
           size: file.size,
           mimeType,
           width,

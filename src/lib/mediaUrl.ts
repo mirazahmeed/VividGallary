@@ -23,6 +23,9 @@ export function secureMediaItem(item: any, userId: string): any {
   if (secured.thumbnailUrl && typeof secured.thumbnailUrl === "string") {
     secured.thumbnailUrl = toStreamUrl(secured.thumbnailUrl, userId);
   }
+  if (secured.gridThumbUrl && typeof secured.gridThumbUrl === "string") {
+    secured.gridThumbUrl = toStreamUrl(secured.gridThumbUrl, userId);
+  }
 
   // Nested: album.media[].media or direct media[] arrays with .media subfield
   if (Array.isArray(secured.media)) {

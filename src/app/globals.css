@@ -5,23 +5,23 @@
   --foreground: #f4f4f5;
   --card: #18181b;
   --card-foreground: #f4f4f5;
-  --primary: #6366f1;
+  --primary: #ef4444;
   --primary-foreground: #ffffff;
   --secondary: #27272a;
   --secondary-foreground: #f4f4f5;
   --muted: #27272a;
   --muted-foreground: #a1a1aa;
-  --accent: #8b5cf6;
+  --accent: #dc2626;
   --accent-foreground: #ffffff;
-  --destructive: #ef4444;
+  --destructive: #991b1b;
   --destructive-foreground: #ffffff;
   --border: #27272a;
   --input: #27272a;
-  --ring: #6366f1;
+  --ring: #ef4444;
   
   --glass-bg: rgba(24, 24, 27, 0.65);
   --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-glow: rgba(99, 102, 241, 0.15);
+  --glass-glow: rgba(239, 68, 68, 0.15);
 }
 
 .light-theme {
@@ -29,26 +29,26 @@
   --foreground: #18181b;
   --card: #ffffff;
   --card-foreground: #18181b;
-  --primary: #4f46e5;
+  --primary: #dc2626;
   --primary-foreground: #ffffff;
   --secondary: #f4f4f5;
   --secondary-foreground: #18181b;
   --muted: #f4f4f5;
   --muted-foreground: #71717a;
-  --accent: #7c3aed;
+  --accent: #991b1b;
   --accent-foreground: #ffffff;
-  --destructive: #dc2626;
+  --destructive: #7f1d1d;
   --destructive-foreground: #ffffff;
   --border: #e4e4e7;
   --input: #e4e4e7;
-  --ring: #4f46e5;
+  --ring: #dc2626;
   
   --glass-bg: rgba(255, 255, 255, 0.75);
   --glass-border: rgba(0, 0, 0, 0.06);
-  --glass-glow: rgba(79, 70, 229, 0.05);
+  --glass-glow: rgba(220, 38, 38, 0.05);
 }
 
-@theme inline {
+@theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -66,6 +66,16 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  /* Square theme overrides - sharp geometric border radii */
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-4xl: 0px;
 }
 
 /* Base Body Setup */
@@ -77,12 +87,18 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Glassmorphism Styles */
+/* Glassmorphism Styles — blur removed for scroll performance */
 .glass {
   background: var(--glass-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border);
+}
+
+/* Pinned elements (header, sidebar) get GPU layer promotion */
+.glass-pinned {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  will-change: transform;
+  contain: layout style paint;
 }
 
 .glass-glow-hover {
@@ -91,7 +107,7 @@ body {
 
 .glass-glow-hover:hover {
   background: var(--glass-bg);
-  border-color: rgba(99, 102, 241, 0.4);
+  border-color: rgba(239, 68, 68, 0.4);
   box-shadow: 0 0 20px var(--glass-glow);
   transform: translateY(-2px);
 }
@@ -144,11 +160,11 @@ body {
 
 /* Pulsing Neon Glow Utilities */
 .neon-glow {
-  box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
 }
 
 .neon-border {
-  border-image: linear-gradient(135deg, #6366f1, #8b5cf6) 1;
+  border-image: linear-gradient(135deg, #ef4444, #dc2626) 1;
 }
 
 /* Smooth Image Scale Trigger */
@@ -171,4 +187,50 @@ input:-webkit-autofill:focus {
   -webkit-text-fill-color: var(--foreground);
   -webkit-box-shadow: 0 0 0px 1000px var(--background) inset;
   transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Skeleton Loading Shimmer */
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.skeleton-card {
+  background: linear-gradient(
+    90deg,
+    var(--secondary) 25%,
+    color-mix(in srgb, var(--secondary) 60%, var(--foreground) 5%) 50%,
+    var(--secondary) 75%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+  border: 1px solid var(--border);
+}
+
+/* Staggered fade-in for media grid items */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.media-fade-in {
+  animation: fadeInUp 0.4s ease-out both;
+}
+
+/* Blur-up image reveal */
+.media-img-loading {
+  filter: blur(8px);
+  opacity: 0.6;
+  transition: filter 0.5s ease-out, opacity 0.4s ease-out;
+}
+
+.media-img-loaded {
+  filter: blur(0);
+  opacity: 1;
 }

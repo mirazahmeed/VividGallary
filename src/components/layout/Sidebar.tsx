@@ -21,7 +21,8 @@ import {
   Settings,
   X,
   MessageSquare,
-  User
+  User,
+  Newspaper
 } from "lucide-react";
 
 interface SidebarProps {
@@ -38,6 +39,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
 
   const menuItems = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
+    { name: "Feed", href: "/feed", icon: Newspaper },
     { name: "Explore", href: "/explore", icon: Compass },
     { name: "Following", href: "/following", icon: UserCheck },
     { name: "Gallery", href: "/gallery", icon: GalleryIcon },
@@ -62,7 +64,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
 
   return (
     <aside
-      className={`glass border-r border-border h-screen flex flex-col justify-between transition-all duration-300 fixed md:relative z-40 md:z-20 ${
+      className={`glass-pinned border-r border-border h-screen flex flex-col justify-between transition-all duration-300 fixed md:relative z-40 md:z-20 ${
         isCollapsedVisual ? "w-20" : "w-64"
       } ${
         mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"

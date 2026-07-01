@@ -1,10 +1,27 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { useApp } from "@/context/AppContext";
-import CustomVideoPlayer from "./CustomVideoPlayer";
-import ImageEditor from "./ImageEditor";
 import UserAvatar from "../layout/UserAvatar";
+
+const CustomVideoPlayer = dynamic(() => import("./CustomVideoPlayer"), {
+  ssr: false,
+  loading: () => (
+    <div className="max-w-[95vw] sm:max-w-[85vw] max-h-[58vh] sm:max-h-[68vh] flex items-center justify-center bg-black/40 rounded-lg">
+      <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+    </div>
+  ),
+});
+
+const ImageEditor = dynamic(() => import("./ImageEditor"), {
+  ssr: false,
+  loading: () => (
+    <div className="fixed inset-0 bg-background/95 backdrop-blur-md flex items-center justify-center z-[60]">
+      <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+    </div>
+  ),
+});
 import {
   X,
   Heart,
@@ -252,7 +269,8 @@ export default function Lightbox({
     if (!media?.id || !user || hideSuggestions) return;
 
     let cancelled = false;
-    const loadUniverseMedia = async () => {
+    // Defer universe media fetch by 2s to prioritize main content rendering
+    const timeoutId = setTimeout(async () => {
       setUniverseLoading(true);
       try {
         const res = await fetch("/api/media");
@@ -264,11 +282,11 @@ export default function Lightbox({
       } finally {
         if (!cancelled) setUniverseLoading(false);
       }
-    };
+    }, 2000);
 
-    loadUniverseMedia();
     return () => {
       cancelled = true;
+      clearTimeout(timeoutId);
     };
   }, [media?.id, user, hideSuggestions]);
 

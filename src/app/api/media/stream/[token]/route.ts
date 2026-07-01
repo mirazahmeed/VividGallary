@@ -4,6 +4,7 @@ import { verifyStreamToken } from "@/lib/mediaToken";
 import { getFilePath } from "@/lib/storage";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 
 /**
  * Secure Media Stream Endpoint
@@ -11,13 +12,23 @@ import path from "path";
  * Serves media files through a signed, time-limited token system.
  * Validates: token signature, token expiry, session cookie, and referer header.
  * 
- * This prevents third-party download managers (IDM, JDownloader, etc.) from
- * grabbing media because:
- * 1. URLs expire after 5 minutes
- * 2. Requests without a valid session cookie are rejected
- * 3. Requests from external referers are rejected
- * 4. Anti-download headers prevent browser download prompts
+ * Performance: Uses ETag + If-None-Match for 304 caching to avoid
+ * re-sending unchanged files. Images get 10-min cache with stale-while-revalidate.
  */
+
+/**
+ * Generate ETag from file stats (mtime + size).
+ * This is fast (no file read needed) and changes when the file is modified.
+ */
+function generateETag(stats: fs.Stats): string {
+  const hash = crypto
+    .createHash("md5")
+    .update(`${stats.mtimeMs}-${stats.size}`)
+    .digest("hex")
+    .slice(0, 16);
+  return `"${hash}"`;
+}
+
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ token: string }> }
@@ -33,12 +44,6 @@ export async function GET(
         headers: { "Content-Type": "text/plain" },
       });
     }
-
-    const currentEpoch = Math.floor(Date.now() / 1000);
-    const maxAge = Math.max(0, payload.exp - currentEpoch);
-    const cacheControl = maxAge > 0
-      ? `private, max-age=${maxAge}`
-      : "private, no-store, no-cache, must-revalidate";
 
     // 2. Validate session cookie (authenticated user required)
     //    Exception: share page requests may not have a session,
@@ -93,7 +98,24 @@ export async function GET(
       });
     }
 
-    // 6. Determine MIME type from extension
+    // 6. Get file stats and generate ETag
+    const stats = fs.statSync(filePath);
+    const fileSize = stats.size;
+    const etag = generateETag(stats);
+
+    // 7. Check If-None-Match for 304 response (skip file read entirely)
+    const ifNoneMatch = req.headers.get("if-none-match");
+    if (ifNoneMatch && ifNoneMatch === etag) {
+      return new NextResponse(null, {
+        status: 304,
+        headers: {
+          "ETag": etag,
+          "Cache-Control": "private, max-age=600, stale-while-revalidate=1200",
+        },
+      });
+    }
+
+    // 8. Determine MIME type from extension
     const ext = path.extname(filePath).toLowerCase();
     const mimeTypes: Record<string, string> = {
       ".jpg": "image/jpeg",
@@ -109,12 +131,30 @@ export async function GET(
       ".avi": "video/x-msvideo",
     };
     const contentType = mimeTypes[ext] || "application/octet-stream";
+    const isImage = contentType.startsWith("image/");
 
-    // 7. Stream file with protective headers
-    const stats = fs.statSync(filePath);
-    const fileSize = stats.size;
+    // 9. Cache-Control: images get longer cache, videos get token-bound cache
+    const currentEpoch = Math.floor(Date.now() / 1000);
+    const tokenMaxAge = Math.max(0, payload.exp - currentEpoch);
+    const cacheControl = isImage
+      ? "private, max-age=600, stale-while-revalidate=1200"
+      : (tokenMaxAge > 0
+          ? `private, max-age=${Math.min(tokenMaxAge, 300)}`
+          : "private, no-store, no-cache, must-revalidate");
 
-    // Handle Range requests for video seeking support
+    // Shared security headers
+    const securityHeaders: Record<string, string> = {
+      "Content-Type": contentType,
+      "Content-Disposition": "inline",
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": cacheControl,
+      "ETag": etag,
+      "X-Robots-Tag": "noindex, nofollow",
+      "X-Frame-Options": "SAMEORIGIN",
+      "Referrer-Policy": "same-origin",
+    };
+
+    // 10. Handle Range requests for video seeking support
     const range = req.headers.get("range");
 
     if (range && contentType.startsWith("video/")) {
@@ -154,21 +194,15 @@ export async function GET(
       return new NextResponse(webStream as any, {
         status: 206,
         headers: {
-          "Content-Type": contentType,
+          ...securityHeaders,
           "Content-Range": `bytes ${start}-${end}/${fileSize}`,
           "Content-Length": chunkSize.toString(),
           "Accept-Ranges": "bytes",
-          // Security headers
-          "Content-Disposition": "inline",
-          "X-Content-Type-Options": "nosniff",
-          "Cache-Control": cacheControl,
-          "X-Robots-Tag": "noindex, nofollow",
-          "X-Frame-Options": "SAMEORIGIN",
-          "Referrer-Policy": "same-origin",
         },
       });
     }
 
+    // 11. Stream full file
     const nodeStream = fs.createReadStream(filePath);
     const webStream = new ReadableStream({
       start(controller) {
@@ -191,20 +225,8 @@ export async function GET(
     return new NextResponse(webStream as any, {
       status: 200,
       headers: {
-        "Content-Type": contentType,
+        ...securityHeaders,
         "Content-Length": fileSize.toString(),
-        // Security: Force inline display, never trigger download dialog
-        "Content-Disposition": "inline",
-        // Prevent MIME type sniffing
-        "X-Content-Type-Options": "nosniff",
-        // Prevent caching of media URLs dynamically (allow cache for remaining token lifetime)
-        "Cache-Control": cacheControl,
-        // Prevent search engine indexing of media
-        "X-Robots-Tag": "noindex, nofollow",
-        // Prevent embedding in iframes from other origins
-        "X-Frame-Options": "SAMEORIGIN",
-        // Prevent referer leaking to other origins
-        "Referrer-Policy": "same-origin",
       },
     });
   } catch (error) {

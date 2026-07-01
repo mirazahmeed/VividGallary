@@ -178,11 +178,11 @@ export default function FollowingPage() {
                     />
                   ) : (
                     <div className="w-full h-full relative group-hover:scale-105 transition-transform duration-500">
-                      <video
-                        src={`${item.url}#t=0.1`}
-                        className="w-full h-full object-cover pointer-events-none"
-                        muted
-                        preload="metadata"
+                      <img
+                        src={item.thumbnailUrl || item.url}
+                        alt={item.filename}
+                        loading="lazy"
+                        className="w-full h-full object-cover"
                         draggable={false}
                         onContextMenu={(e) => e.preventDefault()}
                       />

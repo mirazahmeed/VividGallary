@@ -46,6 +46,12 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const [searchResultsPosts, setSearchResultsPosts] = useState<any[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [showAllRequestsModal, setShowAllRequestsModal] = useState(false);
+  const [localSearch, setLocalSearch] = useState(searchQuery);
+
+  // Sync local search when global searchQuery changes (e.g. cleared elsewhere)
+  useEffect(() => {
+    setLocalSearch(searchQuery);
+  }, [searchQuery]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchDropdownRef = useRef<HTMLDivElement>(null);
@@ -181,7 +187,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const unreadCount = dbNotifications.filter(n => !n.isRead).length;
 
   return (
-    <header className="glass border-b border-border h-16 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-40">
+    <header className="glass-pinned border-b border-border h-16 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-40">
       {/* Hidden File Input for instant uploads */}
       <input
         type="file"
@@ -206,8 +212,9 @@ export default function Header({ onMenuClick }: HeaderProps) {
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
           <input
             type="text"
-            value={searchQuery}
+            value={localSearch}
             onChange={(e) => {
+              setLocalSearch(e.target.value);
               setSearchQuery(e.target.value);
               setShowSearchDropdown(true);
             }}

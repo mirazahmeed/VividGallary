@@ -48,6 +48,7 @@ model Media {
   type         String        // IMAGE, VIDEO
   url          String
   thumbnailUrl String?
+  gridThumbUrl String?       // Smaller WebP thumbnail for grid cards
   size         Int
   mimeType     String
   width        Int?

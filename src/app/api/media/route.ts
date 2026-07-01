@@ -113,9 +113,48 @@ export async function GET(req: Request) {
       ];
     }
 
-    const mediaItems = await prisma.media.findMany({
+    const page = parseInt(searchParams.get("page") || "1", 10);
+    const limit = parseInt(searchParams.get("limit") || "50", 10);
+    const skip = (page - 1) * limit;
+
+    const view = searchParams.get("view"); // "grid" for lightweight response
+
+    const totalCount = await prisma.media.count({
       where: whereClause,
-      include: {
+    });
+
+    // Grid view: slim query — skip comments, likes, full tag joins for card rendering
+    const queryOptions: any = {
+      where: whereClause,
+      orderBy: { createdAt: "desc" as const },
+      skip,
+      take: limit,
+    };
+
+    if (view === "grid") {
+      queryOptions.select = {
+        id: true,
+        filename: true,
+        type: true,
+        url: true,
+        thumbnailUrl: true,
+        gridThumbUrl: true,
+        size: true,
+        mimeType: true,
+        width: true,
+        height: true,
+        isFavorite: true,
+        isArchived: true,
+        visibility: true,
+        createdAt: true,
+        tags: {
+          select: {
+            tag: { select: { name: true } },
+          },
+        },
+      };
+    } else {
+      queryOptions.include = {
         tags: {
           include: {
             tag: true,
@@ -134,14 +173,20 @@ export async function GET(req: Request) {
           },
         },
         likes: true,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+      };
+    }
+
+    const mediaItems = await prisma.media.findMany(queryOptions);
 
     const securedMedia = secureMediaUrls(mediaItems, session.userId);
-    return NextResponse.json({ success: true, media: securedMedia });
+    const hasMore = skip + mediaItems.length < totalCount;
+
+    return NextResponse.json({
+      success: true,
+      media: securedMedia,
+      totalCount,
+      hasMore
+    });
   } catch (error) {
     console.error("Gallery fetch error:", error);
     return NextResponse.json(

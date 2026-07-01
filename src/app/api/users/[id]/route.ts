@@ -68,7 +68,29 @@ export async function GET(
       }
     }) !== null;
 
-    return NextResponse.json({ success: true, user, stats, isFollowing });
+    // Check friendship status
+    let friendshipStatus = "NONE";
+    if (session.userId !== resolvedUserId) {
+      const friendship = await prisma.friendship.findFirst({
+        where: {
+          OR: [
+            { senderId: session.userId, receiverId: resolvedUserId },
+            { senderId: resolvedUserId, receiverId: session.userId }
+          ]
+        }
+      });
+      if (friendship) {
+        if (friendship.status === "ACCEPTED") {
+          friendshipStatus = "ACCEPTED";
+        } else if (friendship.senderId === session.userId) {
+          friendshipStatus = "PENDING_SENT";
+        } else {
+          friendshipStatus = "PENDING_RECEIVED";
+        }
+      }
+    }
+
+    return NextResponse.json({ success: true, user, stats, isFollowing, friendshipStatus });
   } catch (error) {
     console.error("User profile fetch error:", error);
     return NextResponse.json({ error: "Failed to fetch user profile" }, { status: 500 });

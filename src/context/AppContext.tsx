@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
 // Types
@@ -99,8 +99,8 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [mediaSearchQuery, setMediaSearchQuery] = useState("");
+  const [searchQuery, setSearchQueryRaw] = useState("");
+  const [mediaSearchQuery, setMediaSearchQueryRaw] = useState("");
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [dbNotifications, setDbNotifications] = useState<DbNotification[]>([]);
   const [friendRequests, setFriendRequests] = useState<any[]>([]);
@@ -109,6 +109,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const router = useRouter();
   const pathname = usePathname();
+
+  // Debounce search query to avoid re-rendering consumers on every keystroke
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setSearchQuery = useCallback((query: string) => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setSearchQueryRaw(query);
+    }, 300);
+  }, []);
+
+  const mediaSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setMediaSearchQuery = useCallback((query: string) => {
+    if (mediaSearchDebounceRef.current) clearTimeout(mediaSearchDebounceRef.current);
+    mediaSearchDebounceRef.current = setTimeout(() => {
+      setMediaSearchQueryRaw(query);
+    }, 300);
+  }, []);
 
   // Load User and Theme on Mount
   useEffect(() => {
@@ -131,7 +148,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         fetchDbNotifications();
         refreshFriendRequests();
         refreshUnreadChatCount();
-      }, 10000);
+      }, 30000);
 
       return () => clearInterval(interval);
     } else {
@@ -151,7 +168,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, loading, pathname]);
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       const res = await fetch("/api/auth/me");
       if (res.ok) {
@@ -165,9 +182,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchDbNotifications = async () => {
+  const fetchDbNotifications = useCallback(async () => {
     try {
       const res = await fetch("/api/notifications", { cache: "no-store" });
       if (res.ok) {
@@ -177,9 +194,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("Failed to fetch notifications:", err);
     }
-  };
+  }, []);
 
-  const markDbNotificationRead = async (id: string) => {
+  const markDbNotificationRead = useCallback(async (id: string) => {
     try {
       const res = await fetch(`/api/notifications/${id}`, {
         method: "PATCH"
@@ -192,9 +209,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("Failed to mark notification as read:", err);
     }
-  };
+  }, []);
 
-  const clearAllDbNotifications = async () => {
+  const clearAllDbNotifications = useCallback(async () => {
     try {
       const res = await fetch("/api/notifications", {
         method: "DELETE"
@@ -205,9 +222,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("Failed to clear notifications:", err);
     }
-  };
+  }, []);
 
-  const refreshFriendRequests = async () => {
+  const refreshFriendRequests = useCallback(async () => {
     try {
       const res = await fetch("/api/friends", { cache: "no-store" });
       if (res.ok) {
@@ -217,9 +234,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("Failed to fetch friend requests:", err);
     }
-  };
+  }, []);
 
-  const refreshUnreadChatCount = async () => {
+  const refreshUnreadChatCount = useCallback(async () => {
     try {
       const res = await fetch("/api/chat/conversations", { cache: "no-store" });
       if (res.ok) {
@@ -233,9 +250,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("Failed to fetch unread chat count:", err);
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const clearNotification = useCallback((id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  }, []);
+
+  const addNotification = useCallback((title: string, message: string, type: Notification["type"] = "info") => {
+    const newNotif: Notification = {
+      id: Math.random().toString(),
+      title,
+      message,
+      type,
+      createdAt: new Date(),
+    };
+    setNotifications((prev) => [newNotif, ...prev.slice(0, 19)]);
+    
+    // Auto clear notification after 5 seconds
+    setTimeout(() => {
+      clearNotification(newNotif.id);
+    }, 5000);
+  }, [clearNotification]);
+
+  const logout = useCallback(async () => {
     try {
       // 1. Firebase client signout (imported dynamically to safely handle server-side environments)
       const { signOut } = await import("firebase/auth");
@@ -254,37 +291,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("Logout failed:", err);
     }
-  };
+  }, [router, addNotification]);
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     const nextTheme = theme === "dark" ? "light" : "dark";
     setTheme(nextTheme);
     localStorage.setItem("vivid-theme", nextTheme);
     document.documentElement.className = nextTheme === "light" ? "light-theme" : "";
     addNotification("Theme Switched", `Switched to ${nextTheme} mode`, "info");
-  };
+  }, [theme, addNotification]);
 
-  const addNotification = (title: string, message: string, type: Notification["type"] = "info") => {
-    const newNotif: Notification = {
-      id: Math.random().toString(),
-      title,
-      message,
-      type,
-      createdAt: new Date(),
-    };
-    setNotifications((prev) => [newNotif, ...prev.slice(0, 19)]);
-    
-    // Auto clear notification after 5 seconds
-    setTimeout(() => {
-      clearNotification(newNotif.id);
-    }, 5000);
-  };
-
-  const clearNotification = (id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-  };
-
-  const addToUploadQueue = async (files: FileList) => {
+  const addToUploadQueue = useCallback(async (files: FileList) => {
     const newItems: UploadQueueItem[] = Array.from(files).map((file) => ({
       id: Math.random().toString(),
       filename: file.name,
@@ -360,41 +377,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       addNotification("Upload Failed", err.message || "Failed to process files", "error");
     }
-  };
+  }, [pathname, addNotification, refreshUser]);
 
-  const clearUploadQueue = () => {
+  const clearUploadQueue = useCallback(() => {
     setUploadQueue([]);
-  };
+  }, []);
+
+  // Memoize context value to prevent re-renders when poll results haven't changed
+  const contextValue = useMemo(() => ({
+    user,
+    loading,
+    searchQuery,
+    setSearchQuery,
+    mediaSearchQuery,
+    setMediaSearchQuery,
+    notifications,
+    addNotification,
+    clearNotification,
+    dbNotifications,
+    fetchDbNotifications,
+    markDbNotificationRead,
+    clearAllDbNotifications,
+    friendRequests,
+    refreshFriendRequests,
+    unreadChatCount,
+    refreshUnreadChatCount,
+    uploadQueue,
+    addToUploadQueue,
+    clearUploadQueue,
+    theme,
+    toggleTheme,
+    refreshUser,
+    logout,
+  }), [
+    user, loading, searchQuery, mediaSearchQuery,
+    notifications, dbNotifications, friendRequests,
+    unreadChatCount, uploadQueue, theme,
+  ]);
 
   return (
-    <AppContext.Provider
-      value={{
-        user,
-        loading,
-        searchQuery,
-        setSearchQuery,
-        mediaSearchQuery,
-        setMediaSearchQuery,
-        notifications,
-        addNotification,
-        clearNotification,
-        dbNotifications,
-        fetchDbNotifications,
-        markDbNotificationRead,
-        clearAllDbNotifications,
-        friendRequests,
-        refreshFriendRequests,
-        unreadChatCount,
-        refreshUnreadChatCount,
-        uploadQueue,
-        addToUploadQueue,
-        clearUploadQueue,
-        theme,
-        toggleTheme,
-        refreshUser,
-        logout,
-      }}
-    >
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );

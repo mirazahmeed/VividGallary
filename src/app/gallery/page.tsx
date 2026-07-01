@@ -1,10 +1,29 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
+import NextImage from "next/image";
 import { useApp } from "@/context/AppContext";
-import Lightbox, { MediaItem } from "@/components/gallery/Lightbox";
-import Slideshow from "@/components/gallery/Slideshow";
+import type { MediaItem } from "@/components/gallery/Lightbox";
+
+const Lightbox = dynamic(() => import("@/components/gallery/Lightbox"), {
+  ssr: false,
+  loading: () => (
+    <div className="fixed inset-0 bg-background/95 backdrop-blur-md flex items-center justify-center z-50">
+      <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+    </div>
+  ),
+});
+
+const Slideshow = dynamic(() => import("@/components/gallery/Slideshow"), {
+  ssr: false,
+  loading: () => (
+    <div className="fixed inset-0 bg-black flex items-center justify-center z-50">
+      <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+    </div>
+  ),
+});
 import {
   Image as PhotoIcon,
   Video as VideoIcon,
@@ -46,6 +65,16 @@ export default function GalleryPage() {
   // Primary states
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [localSearch, setLocalSearch] = useState(mediaSearchQuery);
+
+  useEffect(() => {
+    setLocalSearch(mediaSearchQuery);
+  }, [mediaSearchQuery]);
+
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const observerTarget = useRef<HTMLDivElement>(null);
   
   // Filters states
   const [activeType, setActiveType] = useState<string>("ALL"); // ALL, IMAGE, VIDEO
@@ -58,6 +87,7 @@ export default function GalleryPage() {
   const [showAlbumDropdown, setShowAlbumDropdown] = useState(false);
   const [isPlayingSlideshow, setIsPlayingSlideshow] = useState(false);
   const [downloadingZip, setDownloadingZip] = useState(false);
+  const [loadedIds, setLoadedIds] = useState<Set<string>>(new Set());
 
   const handleDownloadSelected = async () => {
     if (selectedIds.length === 0) return;
@@ -109,31 +139,64 @@ export default function GalleryPage() {
   // Load and refresh media list dynamically
   useEffect(() => {
     if (user) {
-      fetchMedia();
+      setPage(1);
+      fetchMedia(1, true);
       fetchUserAlbums();
     }
   }, [user, activeType, viewState, mediaSearchQuery]);
 
-  const fetchMedia = async () => {
-    setLoading(true);
+  const fetchMedia = async (pageNum: number, isInitial = false) => {
+    if (isInitial) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
     try {
-      let url = `/api/media?type=${activeType !== "ALL" ? activeType : ""}`;
+      let url = `/api/media?page=${pageNum}&limit=50&view=grid&type=${activeType !== "ALL" ? activeType : ""}`;
       if (viewState === "FAVORITE") url += "&favorite=true";
       if (viewState === "ARCHIVE") url += "&archived=true";
       if (viewState === "TRASH") url += "&trash=true";
-      if (mediaSearchQuery) url += `&search=${mediaSearchQuery}`;
+      if (mediaSearchQuery) url += `&search=${encodeURIComponent(mediaSearchQuery)}`;
 
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
-        setMediaItems(data.media);
+        if (isInitial) {
+          setMediaItems(data.media || []);
+        } else {
+          setMediaItems((prev) => [...prev, ...(data.media || [])]);
+        }
+        setHasMore(data.hasMore || false);
       }
     } catch {
       addNotification("Error", "Failed to fetch gallery media", "error");
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
+
+  // Infinite scroll observer hook
+  useEffect(() => {
+    const target = observerTarget.current;
+    if (!target || !hasMore || loading || loadingMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          const nextPage = page + 1;
+          setPage(nextPage);
+          fetchMedia(nextPage, false);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(target);
+    return () => {
+      observer.unobserve(target);
+    };
+  }, [hasMore, loading, loadingMore, page]);
 
   const fetchUserAlbums = async () => {
     try {
@@ -173,7 +236,7 @@ export default function GalleryPage() {
         );
         setSelectedIds([]);
         setIsSelectMode(false);
-        fetchMedia();
+        fetchMedia(1, true);
       }
     } catch {
       addNotification("Error", "Failed to execute bulk operation", "error");
@@ -247,8 +310,11 @@ export default function GalleryPage() {
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
           <input
             type="text"
-            value={mediaSearchQuery}
-            onChange={(e) => setMediaSearchQuery(e.target.value)}
+            value={localSearch}
+            onChange={(e) => {
+              setLocalSearch(e.target.value);
+              setMediaSearchQuery(e.target.value);
+            }}
             placeholder="Search media..."
             className="w-full bg-secondary/40 hover:bg-secondary/60 focus:bg-secondary border border-border/40 focus:border-primary/50 text-foreground text-xs pl-9 pr-3 py-2 rounded-xl focus:outline-none transition-all placeholder:text-muted-foreground/60"
           />
@@ -317,9 +383,17 @@ export default function GalleryPage() {
 
       {/* 2. Gallery Masonry Render list */}
       {loading ? (
-        <div className="h-96 flex flex-col items-center justify-center gap-3 text-muted-foreground text-xs font-bold animate-pulse">
-          <Loader2 className="animate-spin text-primary" size={32} />
-          LOADING GALLERY FILES...
+        <div className="masonry-grid pb-24">
+          {Array.from({ length: 12 }).map((_, i) => {
+            const h = i % 3 === 0 ? "h-64" : i % 2 === 0 ? "h-80" : "h-72";
+            return (
+              <div
+                key={`skel-${i}`}
+                className={`skeleton-card rounded-2xl ${h}`}
+                style={{ animationDelay: `${i * 0.08}s` }}
+              />
+            );
+          })}
         </div>
       ) : mediaItems.length === 0 ? (
         <div className="h-96 flex flex-col items-center justify-center text-center p-8 bg-card/10 border-2 border-dashed border-border/60 rounded-3xl">
@@ -332,7 +406,8 @@ export default function GalleryPage() {
           </p>
         </div>
       ) : (
-        <div className="masonry-grid pb-24">
+        <>
+          <div className="masonry-grid pb-24">
           {mediaItems.map((item, index) => {
             const isSelected = selectedIds.includes(item.id);
             // Stagger size styles for dynamic premium masonry layout
@@ -370,34 +445,32 @@ export default function GalleryPage() {
                     }
                   }
                 }}
-                className={`group relative overflow-hidden rounded-2xl cursor-pointer shadow-md transition-all duration-300 border bg-secondary/20 hover:scale-[1.015] hover:shadow-xl ${heightClass} ${
+                className={`media-fade-in group relative overflow-hidden rounded-2xl cursor-pointer shadow-md transition-all duration-300 border bg-secondary/20 hover:scale-[1.015] hover:shadow-xl ${heightClass} ${
                   isSelected ? "border-primary/80 ring-2 ring-primary/30" : "border-border/60"
                 }`}
+                style={{ animationDelay: `${Math.min(index, 20) * 0.04}s` }}
               >
-                {/* Media Node image/video thumbnail preview */}
-                {item.type === "IMAGE" ? (
-                  <img
-                    src={item.thumbnailUrl || item.url}
-                    alt={item.filename}
-                    loading="lazy"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    draggable={false}
-                    onContextMenu={(e) => e.preventDefault()}
-                  />
-                ) : (
-                  <div className="w-full h-full relative group-hover:scale-105 transition-transform duration-500">
-                    <video
-                      src={`${item.url}#t=0.1`}
-                      className="w-full h-full object-cover pointer-events-none"
-                      muted
-                      preload="metadata"
-                      draggable={false}
-                      onContextMenu={(e) => e.preventDefault()}
-                    />
-                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                      <div className="w-10 h-10 rounded-full bg-black/45 backdrop-blur-md flex items-center justify-center text-white border border-white/10 group-hover:scale-110 transition-transform">
-                        <VideoIcon size={16} />
-                      </div>
+                {/* Media Node — all items use NextImage for fast grid loading */}
+                <NextImage
+                  src={(item as any).gridThumbUrl || item.thumbnailUrl || item.url}
+                  alt={item.filename}
+                  fill
+                  unoptimized
+                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                  loading={index < 4 ? undefined : "lazy"}
+                  priority={index < 4}
+                  className={`object-cover group-hover:scale-105 transition-all duration-500 ${
+                    loadedIds.has(item.id) ? "media-img-loaded" : "media-img-loading"
+                  }`}
+                  draggable={false}
+                  onContextMenu={(e) => e.preventDefault()}
+                  onLoad={() => setLoadedIds((prev) => new Set(prev).add(item.id))}
+                />
+                {/* Video play icon overlay */}
+                {item.type === "VIDEO" && (
+                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center pointer-events-none">
+                    <div className="w-10 h-10 rounded-full bg-black/45 backdrop-blur-md flex items-center justify-center text-white border border-white/10 group-hover:scale-110 transition-transform">
+                      <Play size={16} fill="white" />
                     </div>
                   </div>
                 )}
@@ -447,7 +520,20 @@ export default function GalleryPage() {
             );
           })}
         </div>
-      )}
+
+        {/* Sentinel / Loading indicator */}
+        {hasMore && (
+          <div ref={observerTarget} className="py-6 flex justify-center items-center">
+            {loadingMore && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground font-bold animate-pulse">
+                <Loader2 className="animate-spin text-primary" size={16} />
+                LOADING MORE ITEMS...
+              </div>
+            )}
+          </div>
+        )}
+      </>
+    )}
 
       {/* 3. Floating Batch Action Drawer (Visible only in selection mode) */}
       {isSelectMode && selectedIds.length > 0 && (
@@ -594,7 +680,7 @@ export default function GalleryPage() {
           onClose={() => setActiveLightboxIndex(null)}
           onPrev={activeLightboxIndex > 0 ? handlePrevLightbox : undefined}
           onNext={activeLightboxIndex < mediaItems.length - 1 ? handleNextLightbox : undefined}
-          onUpdate={fetchMedia}
+          onUpdate={() => fetchMedia(1, true)}
         />
       )}
 
