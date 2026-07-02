@@ -278,50 +278,53 @@ export default function GalleryPage() {
   return (
     <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-300 relative min-h-[80vh]">
       {/* 1. Filter and Navigation Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 border-b border-border/60 pb-4 sm:pb-5">
-        {/* Navigation Categories */}
-        <div className="flex overflow-x-auto scrollbar-none whitespace-nowrap gap-1 bg-secondary/40 p-1 border border-border/40 rounded-2xl max-w-full">
-          {[
-            { label: "Gallery", state: "GALLERY" },
-            { label: "Favorites", state: "FAVORITE" },
-            { label: "Archive", state: "ARCHIVE" },
-            { label: "Trash Bin", state: "TRASH" },
-          ].map((tab) => (
-            <button
-              key={tab.state}
-              onClick={() => {
-                setViewState(tab.state);
-                setSelectedIds([]);
-                setIsSelectMode(false);
+      <div className="flex flex-col gap-3.5 border-b border-border/60 pb-4 sm:pb-5">
+        {/* First Row: View categories & Search */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Navigation Categories */}
+          <div className="flex overflow-x-auto scrollbar-none whitespace-nowrap gap-1 bg-secondary/40 p-1 border border-border/40 rounded-2xl max-w-full">
+            {[
+              { label: "Gallery", state: "GALLERY" },
+              { label: "Favorites", state: "FAVORITE" },
+              { label: "Archive", state: "ARCHIVE" },
+              { label: "Trash Bin", state: "TRASH" },
+            ].map((tab) => (
+              <button
+                key={tab.state}
+                onClick={() => {
+                  setViewState(tab.state);
+                  setSelectedIds([]);
+                  setIsSelectMode(false);
+                }}
+                className={`text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer transition-all ${
+                  viewState === tab.state
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Media Search bar input */}
+          <div className="relative w-full sm:max-w-xs">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+            <input
+              type="text"
+              value={localSearch}
+              onChange={(e) => {
+                setLocalSearch(e.target.value);
+                setMediaSearchQuery(e.target.value);
               }}
-              className={`text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer transition-all ${
-                viewState === tab.state
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+              placeholder="Search media..."
+              className="w-full bg-secondary/40 hover:bg-secondary/60 focus:bg-secondary border border-border/40 focus:border-primary/50 text-foreground text-xs pl-9 pr-3 py-2.5 rounded-xl focus:outline-none transition-all placeholder:text-muted-foreground/60 font-semibold"
+            />
+          </div>
         </div>
 
-        {/* Media Search bar input */}
-        <div className="relative w-full md:max-w-xs">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
-          <input
-            type="text"
-            value={localSearch}
-            onChange={(e) => {
-              setLocalSearch(e.target.value);
-              setMediaSearchQuery(e.target.value);
-            }}
-            placeholder="Search media..."
-            className="w-full bg-secondary/40 hover:bg-secondary/60 focus:bg-secondary border border-border/40 focus:border-primary/50 text-foreground text-xs pl-9 pr-3 py-2 rounded-xl focus:outline-none transition-all placeholder:text-muted-foreground/60"
-          />
-        </div>
-
-        {/* Media type selectors & select mode trigger */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3.5">
+        {/* Second Row: Sub-filters and selection controls */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
           {/* Mimetype category filters */}
           <div className="flex border border-border/60 bg-muted/20 p-1 rounded-xl shrink-0">
             {[
@@ -335,7 +338,7 @@ export default function GalleryPage() {
                   setActiveType(type.type);
                   setSelectedIds([]);
                 }}
-                className={`text-[11px] font-bold px-3 py-1.5 rounded-lg cursor-pointer transition-all ${
+                className={`text-[11px] font-bold px-3.5 py-1.5 rounded-lg cursor-pointer transition-all ${
                   activeType === type.type
                     ? "bg-primary text-primary-foreground shadow"
                     : "text-muted-foreground hover:text-foreground"
@@ -346,38 +349,41 @@ export default function GalleryPage() {
             ))}
           </div>
 
-          {/* Multiselect toggle */}
-          <button
-            onClick={() => {
-              setIsSelectMode(!isSelectMode);
-              setSelectedIds([]);
-            }}
-            className={`flex items-center gap-2 border text-xs font-bold px-3.5 py-2.5 sm:px-4.5 sm:py-2.5 rounded-xl transition-all cursor-pointer ${
-              isSelectMode
-                ? "bg-primary/10 border-primary/40 text-primary"
-                : "border-border/60 text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <SlidersHorizontal size={14} /> {isSelectMode ? "Selection: Active" : "Select Items"}
-          </button>
-
-          {/* Select All Toggle */}
-          {isSelectMode && mediaItems.length > 0 && (
+          {/* Selection controls */}
+          <div className="flex items-center gap-2">
+            {/* Multiselect toggle */}
             <button
-              onClick={handleSelectAll}
-              className="flex items-center gap-2 border border-border/60 text-xs font-bold px-3.5 py-2.5 sm:px-4.5 sm:py-2.5 rounded-xl text-muted-foreground hover:text-foreground transition-all cursor-pointer bg-muted/20"
+              onClick={() => {
+                setIsSelectMode(!isSelectMode);
+                setSelectedIds([]);
+              }}
+              className={`flex items-center gap-2 border text-xs font-bold px-3.5 py-2.5 rounded-xl transition-all cursor-pointer active:scale-95 ${
+                isSelectMode
+                  ? "bg-primary/10 border-primary/40 text-primary"
+                  : "border-border/60 text-muted-foreground hover:text-foreground"
+              }`}
             >
-              {selectedIds.length === mediaItems.length ? (
-                <>
-                  <Square size={14} /> Deselect All
-                </>
-              ) : (
-                <>
-                  <CheckSquare size={14} /> Select All
-                </>
-              )}
+              <SlidersHorizontal size={14} /> {isSelectMode ? "Select: Active" : "Select Items"}
             </button>
-          )}
+
+            {/* Select All Toggle */}
+            {isSelectMode && mediaItems.length > 0 && (
+              <button
+                onClick={handleSelectAll}
+                className="flex items-center gap-2 border border-border/60 text-xs font-bold px-3.5 py-2.5 rounded-xl text-muted-foreground hover:text-foreground transition-all cursor-pointer bg-muted/20 active:scale-95"
+              >
+                {selectedIds.length === mediaItems.length ? (
+                  <>
+                    <Square size={14} /> None
+                  </>
+                ) : (
+                  <>
+                    <CheckSquare size={14} /> All
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -450,29 +456,44 @@ export default function GalleryPage() {
                 }`}
                 style={{ animationDelay: `${Math.min(index, 20) * 0.04}s` }}
               >
-                {/* Media Node — all items use NextImage for fast grid loading */}
-                <NextImage
-                  src={(item as any).gridThumbUrl || item.thumbnailUrl || item.url}
-                  alt={item.filename}
-                  fill
-                  unoptimized
-                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                  loading={index < 4 ? undefined : "lazy"}
-                  priority={index < 4}
-                  className={`object-cover group-hover:scale-105 transition-all duration-500 ${
-                    loadedIds.has(item.id) ? "media-img-loaded" : "media-img-loading"
-                  }`}
-                  draggable={false}
-                  onContextMenu={(e) => e.preventDefault()}
-                  onLoad={() => setLoadedIds((prev) => new Set(prev).add(item.id))}
-                />
-                {/* Video play icon overlay */}
-                {item.type === "VIDEO" && (
-                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center pointer-events-none">
-                    <div className="w-10 h-10 rounded-full bg-black/45 backdrop-blur-md flex items-center justify-center text-white border border-white/10 group-hover:scale-110 transition-transform">
-                      <Play size={16} fill="white" />
+                {/* Media Node — images use NextImage, videos use <video> for native first-frame thumbnail */}
+                {item.type === "VIDEO" ? (
+                  <>
+                    <video
+                      src={item.url}
+                      muted
+                      preload="metadata"
+                      playsInline
+                      className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ${
+                        loadedIds.has(item.id) ? "media-img-loaded" : "media-img-loading"
+                      }`}
+                      draggable={false}
+                      onContextMenu={(e) => e.preventDefault()}
+                      onLoadedData={() => setLoadedIds((prev) => new Set(prev).add(item.id))}
+                    />
+                    {/* Video play icon overlay */}
+                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center pointer-events-none">
+                      <div className="w-10 h-10 rounded-full bg-black/45 backdrop-blur-md flex items-center justify-center text-white border border-white/10 group-hover:scale-110 transition-transform">
+                        <Play size={16} fill="white" />
+                      </div>
                     </div>
-                  </div>
+                  </>
+                ) : (
+                  <NextImage
+                    src={(item as any).gridThumbUrl || item.thumbnailUrl || item.url}
+                    alt={item.filename}
+                    fill
+                    unoptimized
+                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                    loading={index < 4 ? undefined : "lazy"}
+                    priority={index < 4}
+                    className={`object-cover group-hover:scale-105 transition-all duration-500 ${
+                      loadedIds.has(item.id) ? "media-img-loaded" : "media-img-loading"
+                    }`}
+                    draggable={false}
+                    onContextMenu={(e) => e.preventDefault()}
+                    onLoad={() => setLoadedIds((prev) => new Set(prev).add(item.id))}
+                  />
                 )}
 
                 {/* Status Badges (Top right) */}
@@ -537,17 +558,17 @@ export default function GalleryPage() {
 
       {/* 3. Floating Batch Action Drawer (Visible only in selection mode) */}
       {isSelectMode && selectedIds.length > 0 && (
-        <div className="fixed bottom-4 sm:bottom-6 left-4 right-4 sm:left-1/2 sm:-translate-x-1/2 glass border border-border/80 rounded-2xl shadow-2xl px-4 py-3 sm:px-6 sm:py-4 flex flex-col sm:flex-row items-center gap-3 sm:gap-6 z-40 animate-in slide-in-from-bottom-5 duration-300 max-w-[90vw] sm:max-w-2xl">
-          <div className="text-xs font-bold text-foreground sm:border-r sm:border-border sm:pr-5 shrink-0">
-            Selected: <span className="text-primary">{selectedIds.length}</span>
+        <div className="fixed bottom-4 sm:bottom-6 left-4 right-4 sm:left-1/2 sm:-translate-x-1/2 glass border border-border/80 rounded-2xl shadow-2xl px-4 py-3 sm:px-6 sm:py-3.5 flex flex-col sm:flex-row items-center gap-2.5 sm:gap-5 z-40 animate-in slide-in-from-bottom-5 duration-300 max-w-[calc(100vw-2rem)] sm:max-w-3xl">
+          <div className="text-xs font-bold text-foreground sm:border-r sm:border-border sm:pr-5 shrink-0 flex items-center gap-1">
+            Selected: <span className="text-primary font-black">{selectedIds.length}</span>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+          <div className="flex sm:flex-wrap items-center gap-2 overflow-x-auto sm:overflow-x-visible max-w-full scrollbar-none py-1 px-0.5 w-full sm:w-auto">
             {/* Batch Favorite */}
             {viewState !== "TRASH" && (
               <button
                 onClick={() => handleBulkAction("FAVORITE")}
-                className="flex items-center gap-1.5 hover:bg-secondary text-xs font-bold text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl border border-border/60 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 hover:bg-secondary text-xs font-bold text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl border border-border/60 transition-colors cursor-pointer shrink-0 active:scale-95"
               >
                 <Heart size={14} /> Favorite
               </button>
@@ -557,7 +578,7 @@ export default function GalleryPage() {
             {viewState !== "TRASH" && viewState !== "ARCHIVE" && (
               <button
                 onClick={() => handleBulkAction("ARCHIVE")}
-                className="flex items-center gap-1.5 hover:bg-secondary text-xs font-bold text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl border border-border/60 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 hover:bg-secondary text-xs font-bold text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl border border-border/60 transition-colors cursor-pointer shrink-0 active:scale-95"
               >
                 <Archive size={14} /> Archive
               </button>
@@ -567,9 +588,9 @@ export default function GalleryPage() {
             {viewState !== "TRASH" && (
               <button
                 onClick={() => handleBulkAction("MAKE_PUBLIC")}
-                className="flex items-center gap-1.5 hover:bg-secondary text-xs font-bold text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl border border-border/60 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 hover:bg-secondary text-xs font-bold text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl border border-border/60 transition-colors cursor-pointer shrink-0 active:scale-95"
               >
-                <Globe size={14} /> Make Public
+                <Globe size={14} /> Public
               </button>
             )}
 
@@ -577,18 +598,18 @@ export default function GalleryPage() {
             {viewState !== "TRASH" && (
               <button
                 onClick={() => handleBulkAction("MAKE_PRIVATE")}
-                className="flex items-center gap-1.5 hover:bg-secondary text-xs font-bold text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl border border-border/60 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 hover:bg-secondary text-xs font-bold text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl border border-border/60 transition-colors cursor-pointer shrink-0 active:scale-95"
               >
-                <Lock size={14} /> Make Private
+                <Lock size={14} /> Private
               </button>
             )}
 
             {/* Batch Add to Album Trigger */}
             {viewState !== "TRASH" && (
-              <div className="relative">
+              <div className="relative shrink-0">
                 <button
                   onClick={() => setShowAlbumDropdown(!showAlbumDropdown)}
-                  className="flex items-center gap-1.5 hover:bg-secondary text-xs font-bold text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl border border-border/60 transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 hover:bg-secondary text-xs font-bold text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl border border-border/60 transition-colors cursor-pointer active:scale-95"
                 >
                   <FolderPlus size={14} /> Album <ChevronDown size={12} />
                 </button>
@@ -625,9 +646,9 @@ export default function GalleryPage() {
             {viewState !== "TRASH" && (
               <button
                 onClick={() => setIsPlayingSlideshow(true)}
-                className="flex items-center gap-1.5 hover:bg-secondary text-xs font-bold text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl border border-border/60 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 hover:bg-secondary text-xs font-bold text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl border border-border/60 transition-colors cursor-pointer shrink-0 active:scale-95"
               >
-                <Play size={14} fill="currentColor" /> Play Slideshow
+                <Play size={14} fill="currentColor" /> Slideshow
               </button>
             )}
 
@@ -636,15 +657,15 @@ export default function GalleryPage() {
               <button
                 onClick={handleDownloadSelected}
                 disabled={downloadingZip}
-                className="flex items-center gap-1.5 hover:bg-secondary text-xs font-bold text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl border border-border/60 transition-colors cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-1.5 hover:bg-secondary text-xs font-bold text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl border border-border/60 transition-colors cursor-pointer disabled:opacity-50 shrink-0 active:scale-95"
               >
                 {downloadingZip ? (
                   <>
-                    <Loader2 size={14} className="animate-spin text-primary" /> Archiving...
+                    <Loader2 size={14} className="animate-spin text-primary" /> ZIP...
                   </>
                 ) : (
                   <>
-                    <Download size={14} /> Download ZIP
+                    <Download size={14} /> ZIP
                   </>
                 )}
               </button>
@@ -654,18 +675,18 @@ export default function GalleryPage() {
             {viewState === "TRASH" && (
               <button
                 onClick={() => handleBulkAction("RESTORE")}
-                className="flex items-center gap-1.5 bg-primary/10 border border-primary/20 hover:bg-primary/25 text-xs font-bold text-primary px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-sm active:scale-98"
+                className="flex items-center gap-1.5 bg-primary/10 border border-primary/20 hover:bg-primary/25 text-xs font-bold text-primary px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-sm shrink-0 active:scale-95"
               >
-                <RotateCcw size={14} /> Restore Files
+                <RotateCcw size={14} /> Restore
               </button>
             )}
 
             {/* Batch Trash / Permanent Delete */}
             <button
               onClick={() => handleBulkAction(viewState === "TRASH" ? "TRASH" : "TRASH")}
-              className="flex items-center gap-1.5 bg-destructive/10 border border-destructive/20 hover:bg-destructive/25 text-xs font-bold text-destructive px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-sm active:scale-98"
+              className="flex items-center gap-1.5 bg-destructive/10 border border-destructive/20 hover:bg-destructive/25 text-xs font-bold text-destructive px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-sm shrink-0 active:scale-95"
             >
-              <Trash2 size={14} /> {viewState === "TRASH" ? "Delete Permanently" : "Move to Trash"}
+              <Trash2 size={14} /> {viewState === "TRASH" ? "Delete" : "Trash"}
             </button>
           </div>
         </div>

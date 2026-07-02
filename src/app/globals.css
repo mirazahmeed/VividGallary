@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 :root {
@@ -19,7 +20,7 @@
   --input: #27272a;
   --ring: #ef4444;
   
-  --glass-bg: rgba(24, 24, 27, 0.65);
+  --glass-bg: rgba(24, 24, 27, 0.45);
   --glass-border: rgba(255, 255, 255, 0.08);
   --glass-glow: rgba(239, 68, 68, 0.15);
 }
@@ -43,7 +44,7 @@
   --input: #e4e4e7;
   --ring: #dc2626;
   
-  --glass-bg: rgba(255, 255, 255, 0.75);
+  --glass-bg: rgba(255, 255, 255, 0.55);
   --glass-border: rgba(0, 0, 0, 0.06);
   --glass-glow: rgba(220, 38, 38, 0.05);
 }
@@ -66,37 +67,32 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-
-  /* Square theme overrides - sharp geometric border radii */
-  --radius-xs: 0px;
-  --radius-sm: 0px;
-  --radius-md: 0px;
-  --radius-lg: 0px;
-  --radius-xl: 0px;
-  --radius-2xl: 0px;
-  --radius-3xl: 0px;
-  --radius-4xl: 0px;
 }
 
 /* Base Body Setup */
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   overflow-x: hidden;
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Glassmorphism Styles — blur removed for scroll performance */
+/* Glassmorphism Styles — restored backdrop blur for premium depth */
 .glass {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
+
 
 /* Pinned elements (header, sidebar) get GPU layer promotion */
 .glass-pinned {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   will-change: transform;
   contain: layout style paint;
 }

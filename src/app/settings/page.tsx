@@ -306,7 +306,7 @@ export default function SettingsPage() {
               <button
                 type="submit"
                 disabled={savingProfile}
-                className="bg-primary hover:bg-primary/95 text-primary-foreground font-bold text-xs px-5 py-2.5 rounded-xl shadow cursor-pointer transition-all flex items-center gap-1.5 ml-auto"
+                className="w-full sm:w-auto justify-center bg-primary hover:bg-primary/95 text-primary-foreground font-bold text-xs px-5 py-3 sm:py-2.5 rounded-xl shadow cursor-pointer transition-all flex items-center gap-1.5 sm:ml-auto"
               >
                 {savingProfile ? (
                   <Loader2 size={13} className="animate-spin" />
@@ -334,7 +334,7 @@ export default function SettingsPage() {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="At least 6 characters"
-                      className="w-full bg-secondary/40 border border-border/80 focus:border-primary/50 text-foreground text-xs px-3 py-3 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all font-semibold"
+                      className="w-full bg-secondary/25 border border-border/80 focus:border-primary/50 text-foreground text-xs px-3 py-3 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all font-semibold"
                       required
                     />
                   </div>
@@ -346,7 +346,7 @@ export default function SettingsPage() {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="Re-type new password"
-                      className="w-full bg-secondary/40 border border-border/80 focus:border-primary/50 text-foreground text-xs px-3 py-3 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all font-semibold"
+                      className="w-full bg-secondary/25 border border-border/80 focus:border-primary/50 text-foreground text-xs px-3 py-3 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all font-semibold"
                       required
                     />
                   </div>
@@ -362,7 +362,7 @@ export default function SettingsPage() {
                 <button
                   type="submit"
                   disabled={savingPassword}
-                  className="bg-primary hover:bg-primary/95 text-primary-foreground font-bold text-xs px-5 py-2.5 rounded-xl shadow cursor-pointer transition-all flex items-center gap-1.5 ml-auto"
+                  className="w-full sm:w-auto justify-center bg-primary hover:bg-primary/95 text-primary-foreground font-bold text-xs px-5 py-3 sm:py-2.5 rounded-xl shadow cursor-pointer transition-all flex items-center gap-1.5 sm:ml-auto"
                 >
                   {savingPassword ? (
                     <Loader2 size={13} className="animate-spin" />

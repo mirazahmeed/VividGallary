@@ -198,18 +198,18 @@ export default function Header({ onMenuClick }: HeaderProps) {
         className="hidden"
       />
 
-      <div className="flex items-center flex-1 min-w-0 mr-4 relative">
+      <div className="flex items-center flex-1 min-w-0 mr-2 sm:mr-4 relative">
         {/* Mobile Hamburger menu */}
         <button
           onClick={onMenuClick}
-          className="md:hidden mr-3 p-2 rounded-xl hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+          className="md:hidden mr-2 p-2.5 rounded-xl hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors active:scale-95"
         >
           <Menu size={20} />
         </button>
 
         {/* Dynamic Search Bar */}
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
           <input
             type="text"
             value={localSearch}
@@ -219,15 +219,15 @@ export default function Header({ onMenuClick }: HeaderProps) {
               setShowSearchDropdown(true);
             }}
             onFocus={() => setShowSearchDropdown(true)}
-            placeholder="Search posts and friends..."
-            className="w-full bg-secondary/60 hover:bg-secondary/80 focus:bg-secondary border border-border/40 focus:border-primary/50 text-foreground text-sm pl-11 pr-4 py-2 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary/30 transition-all placeholder:text-muted-foreground/60"
+            placeholder="Search posts, friends..."
+            className="w-full bg-secondary/60 hover:bg-secondary/80 focus:bg-secondary border border-border/40 focus:border-primary/50 text-foreground text-xs pl-10 pr-4 py-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary/30 transition-all placeholder:text-muted-foreground/60 font-medium"
           />
 
           {/* Autocomplete Search Dropdown */}
           {showSearchDropdown && searchQuery.trim() && (
             <div
               ref={searchDropdownRef}
-              className="absolute left-0 right-0 mt-2 rounded-2xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col z-50 max-h-96 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200 p-2 space-y-3"
+              className="absolute left-0 mt-2 w-[calc(100vw-2.5rem)] sm:w-[28rem] md:w-full rounded-2xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col z-50 max-h-96 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200 p-2 space-y-3"
             >
               {searchLoading && (
                 <div className="p-4 text-center text-xs text-muted-foreground font-semibold flex items-center justify-center gap-1.5">
@@ -305,14 +305,14 @@ export default function Header({ onMenuClick }: HeaderProps) {
       </div>
 
       {/* Quick Action Buttons */}
-      <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
         {/* Upload Trigger */}
         <button
           onClick={handleUploadClick}
-          className="flex items-center gap-2 bg-gradient-to-r from-primary to-accent hover:from-primary/95 hover:to-accent/95 text-white font-semibold text-xs px-3 py-2.5 sm:px-4.5 sm:py-2.5 rounded-xl cursor-pointer shadow-md hover:shadow-lg hover:shadow-primary/10 active:scale-98 transition-all"
+          className="flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-accent hover:from-primary/95 hover:to-accent/95 text-white font-semibold text-xs p-3 sm:px-4.5 sm:py-2.5 rounded-xl cursor-pointer shadow-md hover:shadow-lg hover:shadow-primary/10 active:scale-95 transition-all"
           title="Upload Media"
         >
-          <Upload size={15} />
+          <Upload size={16} />
           <span className="hidden sm:inline">Upload Media</span>
         </button>
 
@@ -326,16 +326,16 @@ export default function Header({ onMenuClick }: HeaderProps) {
                 fetch("/api/notifications", { method: "PUT" }).then(() => fetchDbNotifications());
               }
             }}
-            className="p-2.5 rounded-xl hover:bg-secondary/80 text-muted-foreground hover:text-foreground transition-all cursor-pointer relative"
+            className="p-3 rounded-xl hover:bg-secondary/80 text-muted-foreground hover:text-foreground transition-all cursor-pointer relative active:scale-95"
           >
             <Bell size={20} />
             {(unreadCount > 0 || friendRequests.length > 0) && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-background animate-pulse" />
+              <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-background animate-pulse" />
             )}
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-3 w-80 max-h-[30rem] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="fixed sm:absolute right-4 sm:right-0 mt-3 w-[calc(100vw-2rem)] sm:w-80 max-h-[30rem] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col z-50 animate-in fade-in slide-in-from-top-2 duration-200">
               <div className="p-4 border-b border-border bg-muted/20 flex items-center justify-between">
                 <span className="font-bold text-sm">Notifications</span>
                 <div className="flex gap-2">

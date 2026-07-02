@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "@/context/AppContext";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import FeedVideoPlayer from "@/components/gallery/FeedVideoPlayer";
 import NextImage from "next/image";
 import UserAvatar from "@/components/layout/UserAvatar";
 const MediaCollage = dynamic(() => import("@/components/gallery/MediaCollage"), {
@@ -25,7 +26,6 @@ import {
   Plus,
   X,
   Image as ImageIcon,
-  Video,
   Globe,
   Lock,
   Compass,
@@ -513,10 +513,13 @@ export default function FeedPage() {
                       className="object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full bg-zinc-950 flex flex-col items-center justify-center p-6 text-center">
-                      <Video className="text-primary mb-1 animate-pulse" size={28} />
-                      <p className="text-xs font-bold text-white max-w-sm truncate">{attachedMedia.filename}</p>
-                    </div>
+                    <video
+                      src={attachedMedia.url}
+                      poster={attachedMedia.thumbnailUrl}
+                      muted
+                      preload="metadata"
+                      className="w-full h-full object-cover"
+                    />
                   )}
                   {/* Remove attachment trigger */}
                   <button
@@ -660,11 +663,18 @@ export default function FeedPage() {
 
                     {/* Post Attached Media */}
                     {post.feedType === "POST" && post.media && (
-                      <div
-                        onClick={() => openLightboxForAttachedMedia(post.media)}
-                        className="rounded-2xl border border-border/50 overflow-hidden bg-black/40 cursor-pointer group hover:scale-[1.002] transition-all relative aspect-[16/9]"
-                      >
-                        {post.media.type === "IMAGE" ? (
+                      post.media.type === "VIDEO" ? (
+                        <FeedVideoPlayer
+                          src={post.media.url}
+                          poster={post.media.thumbnailUrl}
+                          className="rounded-2xl border border-border/50 aspect-[16/9]"
+                          onClick={() => openLightboxForAttachedMedia(post.media)}
+                        />
+                      ) : (
+                        <div
+                          onClick={() => openLightboxForAttachedMedia(post.media)}
+                          className="rounded-2xl border border-border/50 overflow-hidden bg-black/40 cursor-pointer group hover:scale-[1.002] transition-all relative aspect-[16/9]"
+                        >
                           <NextImage
                             src={post.media.url}
                             alt=""
@@ -673,28 +683,29 @@ export default function FeedPage() {
                             sizes="(max-width: 640px) 100vw, 600px"
                             className="object-cover"
                           />
-                        ) : (
-                          <div className="w-full h-full bg-zinc-950 flex flex-col items-center justify-center p-6 text-center">
-                            <Video className="text-primary mb-1 animate-pulse" size={32} />
-                            <p className="text-xs font-bold text-white max-w-sm truncate">{post.media.filename}</p>
-                            <span className="text-[9px] bg-black/60 px-2 py-0.5 rounded font-black text-white/50 mt-1">VIDEO</span>
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                            <span className="text-[10px] bg-primary text-primary-foreground font-black px-3 py-1.5 rounded-xl shadow-lg">
+                              Open in Lightbox
+                            </span>
                           </div>
-                        )}
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                          <span className="text-[10px] bg-primary text-primary-foreground font-black px-3 py-1.5 rounded-xl shadow-lg">
-                            Open in Lightbox
-                          </span>
                         </div>
-                      </div>
+                      )
                     )}
 
                     {/* Media Upload Body (Direct upload type) */}
                     {post.feedType === "MEDIA" && post.media && (
-                      <div
-                        onClick={() => openLightboxForAttachedMedia(post.media)}
-                        className="rounded-2xl border border-border/50 overflow-hidden bg-black/40 cursor-pointer group hover:scale-[1.002] transition-all relative aspect-[16/10]"
-                      >
-                        {post.media.type === "IMAGE" ? (
+                      post.media.type === "VIDEO" ? (
+                        <FeedVideoPlayer
+                          src={post.media.url}
+                          poster={post.media.thumbnailUrl}
+                          className="rounded-2xl border border-border/50 aspect-[16/10]"
+                          onClick={() => openLightboxForAttachedMedia(post.media)}
+                        />
+                      ) : (
+                        <div
+                          onClick={() => openLightboxForAttachedMedia(post.media)}
+                          className="rounded-2xl border border-border/50 overflow-hidden bg-black/40 cursor-pointer group hover:scale-[1.002] transition-all relative aspect-[16/10]"
+                        >
                           <NextImage
                             src={post.media.url}
                             alt=""
@@ -703,19 +714,13 @@ export default function FeedPage() {
                             sizes="(max-width: 640px) 100vw, 600px"
                             className="object-cover"
                           />
-                        ) : (
-                          <div className="w-full h-full bg-zinc-950 flex flex-col items-center justify-center p-6 text-center">
-                            <Video className="text-primary mb-1 animate-pulse" size={32} />
-                            <p className="text-xs font-bold text-white max-w-sm truncate">{post.media.filename}</p>
-                            <span className="text-[9px] bg-black/60 px-2 py-0.5 rounded font-black text-white/50 mt-1">VIDEO</span>
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                            <span className="text-[10px] bg-primary text-primary-foreground font-black px-3 py-1.5 rounded-xl shadow-lg">
+                              Open in Lightbox
+                            </span>
                           </div>
-                        )}
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                          <span className="text-[10px] bg-primary text-primary-foreground font-black px-3 py-1.5 rounded-xl shadow-lg">
-                            Open in Lightbox
-                          </span>
                         </div>
-                      </div>
+                      )
                     )}
 
                     {/* Album collage grid type */}
@@ -955,10 +960,13 @@ export default function FeedPage() {
                           className="object-cover group-hover:opacity-90 transition-opacity"
                         />
                       ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center text-white bg-zinc-950">
-                          <Video size={16} className="text-primary mb-1" />
-                          <span className="text-[8px] truncate max-w-full">{media.filename}</span>
-                        </div>
+                        <video
+                          src={media.url}
+                          poster={media.thumbnailUrl}
+                          muted
+                          preload="metadata"
+                          className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
+                        />
                       )}
                       <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <span className="text-[9px] bg-primary text-primary-foreground font-black px-2 py-1 rounded-lg">Select</span>

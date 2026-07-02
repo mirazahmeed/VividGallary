@@ -64,7 +64,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
 
   return (
     <aside
-      className={`glass-pinned border-r border-border h-screen flex flex-col justify-between transition-all duration-300 fixed md:relative z-40 md:z-20 ${
+      className={`glass-pinned border-r border-border h-screen flex flex-col justify-between transition-all duration-350 ease-[cubic-bezier(0.16,1,0.3,1)] fixed md:relative z-40 md:z-20 ${
         isCollapsedVisual ? "w-20" : "w-64"
       } ${
         mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
@@ -73,15 +73,15 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
       {/* Collapse Toggle Trigger */}
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-6 w-6 h-6 bg-primary text-primary-foreground rounded-full hidden md:flex items-center justify-center cursor-pointer shadow-md hover:scale-105 active:scale-95 transition-transform z-50"
+        className="absolute -right-3 top-6 w-6 h-6 bg-primary text-primary-foreground rounded-full hidden md:flex items-center justify-center cursor-pointer shadow-md hover:scale-110 active:scale-90 transition-transform z-50"
       >
         {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
       </button>
 
       {/* Top Header Logo */}
-      <div className="p-6 flex items-center justify-between gap-3">
+      <div className="p-5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white font-bold text-lg shadow-lg shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white font-bold text-lg shadow-lg shrink-0">
             V
           </div>
           {!isCollapsedVisual && (
@@ -93,14 +93,14 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
         {/* Close Button on mobile */}
         <button
           onClick={() => setMobileOpen(false)}
-          className="md:hidden p-1 rounded-xl hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+          className="md:hidden p-2 rounded-xl hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
         >
           <X size={18} />
         </button>
       </div>
 
       {/* Navigation Menu */}
-      <nav className="flex-1 px-4 py-2 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-2 space-y-1.5 overflow-y-auto">
         {menuItems.map((item) => {
           const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
           const Icon = item.icon;
@@ -110,14 +110,14 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
               key={item.name}
               href={item.href}
               onClick={() => setMobileOpen(false)}
-              className={`flex items-center gap-4 px-3 py-3 rounded-xl transition-all duration-200 group relative ${
+              className={`flex items-center gap-4 px-3.5 py-3 rounded-xl transition-all duration-200 group relative active:scale-97 ${
                 isActive
                   ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]"
                   : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
               }`}
             >
               <Icon size={20} className={isActive ? "" : "group-hover:text-primary transition-colors"} />
-              {!isCollapsedVisual && <span className="font-medium text-sm">{item.name}</span>}
+              {!isCollapsedVisual && <span className="font-semibold text-sm tracking-wide">{item.name}</span>}
               {!isCollapsedVisual && item.name === "Chat" && unreadChatCount > 0 && (
                 <span className="ml-auto bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 shadow-md animate-pulse">
                   {unreadChatCount}
@@ -139,7 +139,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
       </nav>
 
       {/* Bottom Profile, Storage & Theme controls */}
-      <div className="p-4 border-t border-border space-y-4">
+      <div className="p-4 border-t border-border space-y-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         {/* Storage usage details */}
         <div className={`rounded-xl p-3 bg-muted/40 border border-border/40 ${isCollapsedVisual ? "flex justify-center" : ""}`}>
           {isCollapsedVisual ? (
@@ -178,10 +178,10 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
         </div>
 
         {/* Theme and Logout toggles */}
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1.5">
           <button
             onClick={toggleTheme}
-            className="flex items-center gap-4 px-3 py-2.5 rounded-xl hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors cursor-pointer w-full text-left"
+            className="flex items-center gap-4 px-3.5 py-3 rounded-xl hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors cursor-pointer w-full text-left active:scale-98"
           >
             {theme === "dark" ? <Sun size={20} className="text-amber-400" /> : <Moon size={20} className="text-indigo-600" />}
             {!isCollapsedVisual && <span className="text-sm font-medium">Theme Mode</span>}
@@ -189,7 +189,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
 
           <button
             onClick={logout}
-            className="flex items-center gap-4 px-3 py-2.5 rounded-xl hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors cursor-pointer w-full text-left"
+            className="flex items-center gap-4 px-3.5 py-3 rounded-xl hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors cursor-pointer w-full text-left active:scale-98"
           >
             <LogOut size={20} className="text-destructive/80" />
             {!isCollapsedVisual && <span className="text-sm font-medium">Logout</span>}

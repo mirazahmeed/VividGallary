@@ -1255,12 +1255,13 @@ export default function ProfilePage({ params }: { params: Promise<{ username: st
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                       ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center text-white/50">
-                          <Video size={20} className="text-primary" />
-                          <span className="text-[7px] bg-black/60 px-1 py-0.5 rounded font-black text-white/50 mt-1 truncate max-w-[80px]">
-                            VIDEO
-                          </span>
-                        </div>
+                        <video
+                          src={item.url}
+                          muted
+                          preload="metadata"
+                          playsInline
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
                       )}
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <span className="text-[8px] bg-primary text-primary-foreground px-2 py-0.5 rounded font-black">

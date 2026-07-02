@@ -200,10 +200,11 @@ export default function ExplorePage() {
                     />
                   ) : (
                     <div className="w-full h-full relative group-hover:scale-105 transition-transform duration-500">
-                      <img
-                        src={item.thumbnailUrl || item.url}
-                        alt={item.filename}
-                        loading="lazy"
+                      <video
+                        src={item.url}
+                        muted
+                        preload="metadata"
+                        playsInline
                         className="w-full h-full object-cover"
                         draggable={false}
                         onContextMenu={(e) => e.preventDefault()}

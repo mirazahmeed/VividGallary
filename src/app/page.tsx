@@ -111,19 +111,19 @@ export default function DashboardPage() {
       </div>
 
       {/* 2. Top Stats Overview (Storage + Counter widgets) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Radial Storage Ring Card */}
-        <div className="glass rounded-3xl p-6 border border-border flex items-center justify-between shadow-lg relative overflow-hidden group">
-          <div className="space-y-3.5 relative z-10">
+        <div className="glass rounded-3xl p-5 sm:p-6 border border-border flex items-center justify-between shadow-lg relative overflow-hidden group">
+          <div className="space-y-3 relative z-10">
             <span className="text-[10px] font-extrabold tracking-wider text-muted-foreground uppercase flex items-center gap-1.5">
               <HardDrive size={13} className="text-primary" /> Storage Allocated
             </span>
             <div className="space-y-1">
-              <h2 className="text-2xl font-black tracking-tight text-foreground">
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
                 {storageUsedGB} GB
               </h2>
               <p className="text-[10px] text-muted-foreground font-semibold">
-                Consumed out of {storageLimitGB} GB
+                Consumed of {storageLimitGB} GB
               </p>
             </div>
             <div className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-primary/10 text-primary px-3 py-1 rounded-full">
@@ -132,20 +132,39 @@ export default function DashboardPage() {
           </div>
 
           {/* SVG Progress Circle */}
-          <div className="relative flex items-center justify-center shrink-0 w-28 h-28 group-hover:scale-105 transition-transform duration-300">
+          <div className="relative flex items-center justify-center shrink-0 w-24 h-24 sm:w-28 sm:h-28 group-hover:scale-105 transition-transform duration-300">
             <svg className="w-full h-full -rotate-90">
+              <circle
+                cx="48"
+                cy="48"
+                r="40"
+                className="stroke-secondary fill-transparent sm:hidden"
+                strokeWidth="6"
+              />
+              <circle
+                cx="48"
+                cy="48"
+                r="40"
+                className="stroke-primary fill-transparent transition-all duration-700 ease-out sm:hidden"
+                strokeWidth="6"
+                strokeDasharray={2 * Math.PI * 40}
+                strokeDashoffset={(2 * Math.PI * 40) - (storagePercent / 100) * (2 * Math.PI * 40)}
+                strokeLinecap="round"
+                style={{ transformOrigin: 'center' }}
+              />
+              
               <circle
                 cx="56"
                 cy="56"
                 r={radius}
-                className="stroke-secondary fill-transparent"
+                className="stroke-secondary fill-transparent hidden sm:block"
                 strokeWidth="8"
               />
               <circle
                 cx="56"
                 cy="56"
                 r={radius}
-                className="stroke-primary fill-transparent transition-all duration-700 ease-out"
+                className="stroke-primary fill-transparent transition-all duration-700 ease-out hidden sm:block"
                 strokeWidth="8"
                 strokeDasharray={circumference}
                 strokeDashoffset={strokeDashoffset}
@@ -153,51 +172,51 @@ export default function DashboardPage() {
               />
             </svg>
             <div className="absolute flex flex-col items-center justify-center text-center">
-              <span className="text-base font-black text-foreground">{storagePercent}%</span>
+              <span className="text-sm sm:text-base font-black text-foreground">{storagePercent}%</span>
               <span className="text-[8px] font-bold text-muted-foreground uppercase">Used</span>
             </div>
           </div>
         </div>
 
         {/* Counter cards (Photos / Videos Ratio) */}
-        <div className="md:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <Link href="/gallery?type=IMAGE" className="glass rounded-3xl p-5 border border-border flex flex-col justify-between shadow-lg hover:border-primary/40 hover:-translate-y-1 transition-all group">
+        <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <Link href="/gallery?type=IMAGE" className="glass rounded-3xl p-4 sm:p-5 border border-border flex flex-col justify-between shadow-lg hover:border-primary/40 hover:-translate-y-1 transition-all group active:scale-98">
             <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center group-hover:scale-110 transition-transform">
               <PhotoIcon size={20} />
             </div>
             <div className="space-y-0.5 mt-4">
               <span className="text-[10px] font-bold text-muted-foreground uppercase">Photos</span>
-              <h3 className="text-xl font-black text-foreground">{user.stats.photosCount}</h3>
+              <h3 className="text-lg sm:text-xl font-black text-foreground">{user.stats.photosCount}</h3>
             </div>
           </Link>
 
-          <Link href="/gallery?type=VIDEO" className="glass rounded-3xl p-5 border border-border flex flex-col justify-between shadow-lg hover:border-primary/40 hover:-translate-y-1 transition-all group">
+          <Link href="/gallery?type=VIDEO" className="glass rounded-3xl p-4 sm:p-5 border border-border flex flex-col justify-between shadow-lg hover:border-primary/40 hover:-translate-y-1 transition-all group active:scale-98">
             <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center group-hover:scale-110 transition-transform">
               <VideoIcon size={20} />
             </div>
             <div className="space-y-0.5 mt-4">
               <span className="text-[10px] font-bold text-muted-foreground uppercase">Videos</span>
-              <h3 className="text-xl font-black text-foreground">{user.stats.videosCount}</h3>
+              <h3 className="text-lg sm:text-xl font-black text-foreground">{user.stats.videosCount}</h3>
             </div>
           </Link>
 
-          <Link href="/albums" className="glass rounded-3xl p-5 border border-border flex flex-col justify-between shadow-lg hover:border-primary/40 hover:-translate-y-1 transition-all group">
+          <Link href="/albums" className="glass rounded-3xl p-4 sm:p-5 border border-border flex flex-col justify-between shadow-lg hover:border-primary/40 hover:-translate-y-1 transition-all group active:scale-98">
             <div className="w-10 h-10 rounded-xl bg-pink-500/10 text-pink-500 flex items-center justify-center group-hover:scale-110 transition-transform">
               <FolderHeart size={20} />
             </div>
             <div className="space-y-0.5 mt-4">
               <span className="text-[10px] font-bold text-muted-foreground uppercase">Albums</span>
-              <h3 className="text-xl font-black text-foreground">{user.stats.albumsCount}</h3>
+              <h3 className="text-lg sm:text-xl font-black text-foreground">{user.stats.albumsCount}</h3>
             </div>
           </Link>
 
-          <Link href="/playlists" className="glass rounded-3xl p-5 border border-border flex flex-col justify-between shadow-lg hover:border-primary/40 hover:-translate-y-1 transition-all group">
+          <Link href="/playlists" className="glass rounded-3xl p-4 sm:p-5 border border-border flex flex-col justify-between shadow-lg hover:border-primary/40 hover:-translate-y-1 transition-all group active:scale-98">
             <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center group-hover:scale-110 transition-transform">
               <PlayCircle size={20} />
             </div>
             <div className="space-y-0.5 mt-4">
               <span className="text-[10px] font-bold text-muted-foreground uppercase">Playlists</span>
-              <h3 className="text-xl font-black text-foreground">{user.stats.playlistsCount}</h3>
+              <h3 className="text-lg sm:text-xl font-black text-foreground">{user.stats.playlistsCount}</h3>
             </div>
           </Link>
         </div>
@@ -212,19 +231,19 @@ export default function DashboardPage() {
             onDragLeave={handleDrag}
             onDragOver={handleDrag}
             onDrop={handleDrop}
-            className={`w-full h-80 rounded-3xl border-2 border-dashed flex flex-col items-center justify-center p-8 text-center transition-all relative overflow-hidden group shadow-md bg-card/10 ${
+            className={`w-full h-60 sm:h-80 rounded-3xl border-2 border-dashed flex flex-col items-center justify-center p-6 sm:p-8 text-center transition-all relative overflow-hidden group shadow-md bg-card/10 ${
               dragActive
                 ? "border-primary bg-primary/5 scale-[1.01]"
                 : "border-border/80 hover:border-primary/50 hover:bg-card/25"
             }`}
           >
-            <div className="w-16 h-16 rounded-2xl bg-secondary/50 text-muted-foreground group-hover:text-primary group-hover:bg-primary/10 flex items-center justify-center shadow-inner transition-colors mb-4 relative z-10">
-              <CloudLightning size={28} className="group-hover:scale-110 transition-transform" />
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-secondary/50 text-muted-foreground group-hover:text-primary group-hover:bg-primary/10 flex items-center justify-center shadow-inner transition-colors mb-3 sm:mb-4 relative z-10">
+              <CloudLightning size={24} className="group-hover:scale-110 transition-transform" />
             </div>
-            <h3 className="text-base font-extrabold text-foreground mb-1.5 relative z-10">
+            <h3 className="text-sm sm:text-base font-extrabold text-foreground mb-1.5 relative z-10">
               Drag & Drop your media files here
             </h3>
-            <p className="text-xs text-muted-foreground max-w-[280px] leading-relaxed relative z-10">
+            <p className="text-[11px] sm:text-xs text-muted-foreground max-w-[280px] leading-relaxed relative z-10">
               Supports photos (JPG, PNG, WebP, GIF, HEIC) and video formats (MP4, MOV, WebM, MKV).
             </p>
             <button
@@ -232,7 +251,7 @@ export default function DashboardPage() {
                 const headerInput = document.querySelector('header input[type="file"]') as HTMLInputElement;
                 headerInput?.click();
               }}
-              className="mt-6 border border-border/80 hover:border-primary/40 bg-secondary/50 hover:bg-secondary text-foreground text-xs font-semibold px-5 py-2.5 rounded-xl cursor-pointer hover:shadow-md transition-all relative z-10"
+              className="mt-4 sm:mt-6 border border-border/80 hover:border-primary/40 bg-secondary/50 hover:bg-secondary text-foreground text-xs font-semibold px-5 py-2.5 rounded-xl cursor-pointer hover:shadow-md transition-all relative z-10 active:scale-95"
             >
               Browse Files
             </button>

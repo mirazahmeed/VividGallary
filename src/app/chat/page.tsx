@@ -546,15 +546,13 @@ export default function ChatPage() {
                                   className="w-full aspect-[4/3] object-cover"
                                 />
                               ) : (
-                                <div className="w-full aspect-[4/3] bg-zinc-950 flex flex-col items-center justify-center p-3 text-center">
-                                  <Video size={24} className="text-primary animate-pulse mb-1" />
-                                  <p className="text-[10px] font-bold text-white/90 truncate w-full px-2">
-                                    {msg.media.filename}
-                                  </p>
-                                  <span className="text-[8px] font-bold text-white/50 tracking-tight mt-1 bg-black/60 px-1.5 py-0.5 rounded">
-                                    VIDEO
-                                  </span>
-                                </div>
+                                <video
+                                  src={msg.media.url}
+                                  muted
+                                  preload="metadata"
+                                  playsInline
+                                  className="w-full aspect-[4/3] object-cover"
+                                />
                               )}
                               
                               {/* Hover Overlay */}
@@ -686,12 +684,13 @@ export default function ChatPage() {
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
                         ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center">
-                            <Video size={16} className="text-primary" />
-                            <span className="text-[6px] text-white/50 mt-1 uppercase font-bold tracking-tight bg-black/60 px-1 rounded">
-                              VIDEO
-                            </span>
-                          </div>
+                          <video
+                            src={item.url}
+                            muted
+                            preload="metadata"
+                            playsInline
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
                         )}
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <span className="text-[8px] bg-primary text-primary-foreground px-2 py-0.5 rounded font-black">

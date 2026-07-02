@@ -6,6 +6,7 @@ import { useApp } from "@/context/AppContext";
 import { ShieldCheck, Mail, Lock, User, Loader2 } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { motion } from "framer-motion";
 
 export default function LoginPage() {
   const { user, refreshUser, addNotification } = useApp();
@@ -107,26 +108,54 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
       {/* Visual background neon gradients */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-primary/20 rounded-full filter blur-3xl" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-accent/20 rounded-full filter blur-3xl" />
+      <motion.div
+        animate={{
+          scale: [1, 1.1, 1],
+          opacity: [0.15, 0.25, 0.15]
+        }}
+        transition={{
+          duration: 8,
+          repeat: Infinity,
+          ease: "easeInOut"
+        }}
+        className="absolute -top-40 -left-40 w-96 h-96 bg-primary/20 rounded-full filter blur-3xl pointer-events-none"
+      />
+      <motion.div
+        animate={{
+          scale: [1, 1.15, 1],
+          opacity: [0.15, 0.25, 0.15]
+        }}
+        transition={{
+          duration: 10,
+          repeat: Infinity,
+          ease: "easeInOut",
+          delay: 1
+        }}
+        className="absolute -bottom-40 -right-40 w-96 h-96 bg-accent/20 rounded-full filter blur-3xl pointer-events-none"
+      />
 
       {/* Auth Card Layout */}
-      <div className="w-full max-w-md glass rounded-3xl p-8 border border-border shadow-2xl relative z-10">
+      <motion.div
+        initial={{ opacity: 0, y: 30, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-md glass rounded-3xl p-6 sm:p-8 border border-border/80 shadow-2xl relative z-10"
+      >
         <div className="flex flex-col items-center mb-8">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white shadow-lg mb-4">
             <ShieldCheck size={24} />
           </div>
-          <h1 className="text-2xl font-black text-foreground">
+          <h1 className="text-xl sm:text-2xl font-black text-foreground">
             {isRegister ? "Create Account" : "Access Gallery"}
           </h1>
-          <p className="text-xs text-muted-foreground mt-1 text-center max-w-[280px]">
+          <p className="text-xs text-muted-foreground mt-1.5 text-center max-w-[280px] leading-relaxed">
             {isRegister
               ? "Register to host, organize, and share your personal media catalog."
               : "Enter your host credentials to unlock your secure media catalog."}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4.5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {isRegister && (
             <div className="relative">
               <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
@@ -135,7 +164,7 @@ export default function LoginPage() {
                 placeholder="Full Name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full bg-secondary/40 border border-border/80 focus:border-primary/60 text-foreground text-xs pl-10 pr-4 py-3 rounded-2xl focus:outline-none focus:ring-1 focus:ring-primary/25 transition-all"
+                className="w-full bg-secondary/40 border border-border/80 focus:border-primary/60 text-foreground text-xs pl-10 pr-4 py-3 rounded-2xl focus:outline-none focus:ring-1 focus:ring-primary/25 transition-all font-semibold"
               />
             </div>
           )}
@@ -147,7 +176,7 @@ export default function LoginPage() {
               placeholder="Email Address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-secondary/40 border border-border/80 focus:border-primary/60 text-foreground text-xs pl-10 pr-4 py-3 rounded-2xl focus:outline-none focus:ring-1 focus:ring-primary/25 transition-all"
+              className="w-full bg-secondary/40 border border-border/80 focus:border-primary/60 text-foreground text-xs pl-10 pr-4 py-3 rounded-2xl focus:outline-none focus:ring-1 focus:ring-primary/25 transition-all font-semibold"
             />
           </div>
 
@@ -158,14 +187,14 @@ export default function LoginPage() {
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-secondary/40 border border-border/80 focus:border-primary/60 text-foreground text-xs pl-10 pr-4 py-3 rounded-2xl focus:outline-none focus:ring-1 focus:ring-primary/25 transition-all"
+              className="w-full bg-secondary/40 border border-border/80 focus:border-primary/60 text-foreground text-xs pl-10 pr-4 py-3 rounded-2xl focus:outline-none focus:ring-1 focus:ring-primary/25 transition-all font-semibold"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-primary to-accent text-white font-bold text-xs shadow-lg hover:shadow-primary/20 hover:scale-[1.01] active:scale-99 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-primary to-accent text-white font-bold text-xs shadow-lg hover:shadow-primary/20 hover:scale-[1.01] active:scale-99 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2"
           >
             {loading ? (
               <Loader2 className="animate-spin" size={16} />
@@ -190,7 +219,7 @@ export default function LoginPage() {
             </button>
           </p>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
